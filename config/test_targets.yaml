@@ -1,0 +1,23 @@
+defaults:
+  max_rank: 20
+  region: ""
+
+businesses:
+  - id: test_gangnam
+    name: "도원반점 강남역직영점"
+    place_id: "2051450000"
+  - id: test_hongdae
+    name: "언플러그드 라운지"
+    place_id: "1476560900"
+
+keywords:
+  - "강남역 맛집"
+  - "홍대 카페"
+
+targets:
+  - business_id: test_gangnam
+    keywords:
+      - "강남역 맛집"
+  - business_id: test_hongdae
+    keywords:
+      - "홍대 카페"

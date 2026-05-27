@@ -1,0 +1,155 @@
+"""네이버 지도 키워드 검색 (공유 로직)."""
+
+from __future__ import annotations
+
+import logging
+from urllib.parse import quote
+
+from playwright.async_api import Frame, Page, Response
+
+from src.matcher import SearchResultItem
+from src.parser import (
+    APOLLO_EXTRACT_SCRIPT,
+    IFRAME_SEARCH,
+    MAP_SEARCH_URL,
+    PLACE_LIST_URL,
+    PLACE_LINK_SELECTORS,
+    merge_place_tuples,
+    parse_places_from_apollo_payload,
+    parse_places_from_dom_links,
+    parse_places_from_response_body,
+    to_search_results,
+)
+
+logger = logging.getLogger(__name__)
+
+RESPONSE_HINTS = ("search", "place", "allSearch", "list", "graphql")
+
+
+async def search_keyword_results(
+    page: Page,
+    keyword: str,
+    max_rank: int,
+) -> list[SearchResultItem]:
+    captured_places: list[tuple[str, str]] = []
+
+    async def on_response(response: Response) -> None:
+        url = response.url.lower()
+        if not any(hint in url for hint in RESPONSE_HINTS):
+            return
+        content_type = response.headers.get("content-type", "")
+        if "json" not in content_type and "text" not in content_type:
+            return
+        try:
+            body = await response.text()
+        except Exception:
+            return
+        places = parse_places_from_response_body(body)
+        if places:
+            captured_places.extend(places)
+
+    page.on("response", on_response)
+
+    list_url = PLACE_LIST_URL.format(
+        keyword=quote(keyword),
+        display=max(max_rank, 20),
+    )
+    await page.goto(list_url, wait_until="domcontentloaded", timeout=60000)
+    await page.wait_for_timeout(3500)
+
+    apollo_places = await _collect_places_from_apollo(page)
+    dom_places = await _collect_places_from_dom(page, max_rank)
+
+    all_places = merge_place_tuples([], apollo_places)
+    all_places = merge_place_tuples(all_places, captured_places)
+    all_places = merge_place_tuples(all_places, dom_places)
+
+    if not all_places:
+        map_url = MAP_SEARCH_URL.format(keyword=quote(keyword))
+        await page.goto(map_url, wait_until="domcontentloaded", timeout=60000)
+        await page.wait_for_timeout(3500)
+        iframe_places = await _collect_places_from_search_iframe(page)
+        all_places = merge_place_tuples(all_places, iframe_places)
+
+    page.remove_listener("response", on_response)
+
+    results = to_search_results(all_places[:max_rank])
+    if not results:
+        raise RuntimeError("검색 결과를 파싱하지 못했습니다.")
+
+    return results
+
+
+async def _collect_places_from_apollo(page: Page) -> list[tuple[str, str]]:
+    for frame in page.frames:
+        try:
+            payload = await frame.evaluate(APOLLO_EXTRACT_SCRIPT)
+        except Exception:
+            continue
+
+        if not isinstance(payload, dict):
+            continue
+
+        places, _ = parse_places_from_apollo_payload(payload)
+        if places:
+            logger.debug("Parsed %s places from Apollo state", len(places))
+            return places
+
+    return []
+
+
+async def _collect_places_from_search_iframe(page: Page) -> list[tuple[str, str]]:
+    iframe_element = page.locator(IFRAME_SEARCH)
+    try:
+        await iframe_element.wait_for(state="attached", timeout=15000)
+    except Exception:
+        return []
+
+    for frame in page.frames:
+        if "pcmap.place.naver.com" not in (frame.url or ""):
+            continue
+        try:
+            payload = await frame.evaluate(APOLLO_EXTRACT_SCRIPT)
+        except Exception:
+            continue
+        places, _ = parse_places_from_apollo_payload(payload)
+        if places:
+            return places
+
+    return []
+
+
+async def _collect_places_from_dom(page: Page, max_rank: int) -> list[tuple[str, str]]:
+    places: list[tuple[str, str]] = []
+
+    target_frame: Frame | None = None
+    for frame in page.frames:
+        if "pcmap.place.naver.com" in (frame.url or ""):
+            target_frame = frame
+            break
+
+    if target_frame is None:
+        target_frame = page.main_frame
+
+    for selector in PLACE_LINK_SELECTORS:
+        try:
+            elements = target_frame.locator(selector)
+            count = await elements.count()
+            if count == 0:
+                continue
+
+            links: list[dict[str, str]] = []
+            for i in range(min(count, max_rank)):
+                item = elements.nth(i)
+                href = await item.get_attribute("href") or ""
+                text = (await item.inner_text()).strip()
+                links.append({"href": href, "text": text})
+
+            parsed = parse_places_from_dom_links(links)
+            places = merge_place_tuples(places, parsed)
+            if places:
+                break
+        except Exception as exc:
+            logger.debug("Selector failed %s: %s", selector, exc)
+
+    return places

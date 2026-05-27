@@ -1,0 +1,10 @@
+.env
+data/
+logs/
+__pycache__/
+*.pyc
+.venv/
+venv/
+*.db
+.pytest_cache/
+data/watchlist.json
