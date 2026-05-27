@@ -1,5 +1,4 @@
 .env
-data/
 logs/
 __pycache__/
 *.pyc
@@ -8,3 +7,5 @@ venv/
 *.db
 .pytest_cache/
 data/watchlist.json
+!.gitkeep
+.streamlit/credentials.toml
