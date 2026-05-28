@@ -140,23 +140,12 @@ def parse_place_candidates(payload: dict) -> list[PlaceCandidate]:
     return candidates
 
 
+def is_exact_name_match(query: str, candidate: PlaceCandidate) -> bool:
+    return normalize_place_name(query) == normalize_place_name(candidate.name)
+
+
 def score_candidate(query: str, candidate: PlaceCandidate) -> int:
-    q = normalize_place_name(query)
-    name = normalize_place_name(candidate.name)
-    if not q or not name:
-        return 0
-    if q == name:
-        return 100
-    if name.startswith(q):
-        return 80
-    if q in name:
-        return 60
-    if name in q:
-        return 50
-    tokens = [token for token in q.split() if len(token) >= 2]
-    if tokens and all(token in name for token in tokens):
-        return 40
-    return 0
+    return 100 if is_exact_name_match(query, candidate) else 0
 
 
 def filter_candidates(
@@ -168,23 +157,8 @@ def filter_candidates(
     if not candidates:
         return []
 
-    scored = [(score_candidate(query, candidate), candidate) for candidate in candidates]
-    matched = [candidate for score, candidate in scored if score > 0]
-    pool = matched if matched else [candidate for _, candidate in scored]
-
-    ranked: list[PlaceCandidate] = []
-    seen: set[str] = set()
-    for _, candidate in sorted(
-        ((score_candidate(query, c), c) for c in pool),
-        key=lambda item: (-item[0], item[1].name),
-    ):
-        if candidate.place_id in seen:
-            continue
-        seen.add(candidate.place_id)
-        ranked.append(candidate)
-        if len(ranked) >= limit:
-            break
-    return ranked
+    exact_matches = [candidate for candidate in candidates if is_exact_name_match(query, candidate)]
+    return exact_matches[:limit]
 
 
 def pick_auto_candidate(
@@ -192,15 +166,8 @@ def pick_auto_candidate(
     candidates: list[PlaceCandidate],
 ) -> PlaceCandidate | None:
     filtered = filter_candidates(query, candidates)
-    if not filtered:
-        return None
     if len(filtered) == 1:
         return filtered[0]
-
-    q = normalize_place_name(query)
-    exact = [candidate for candidate in filtered if normalize_place_name(candidate.name) == q]
-    if len(exact) == 1:
-        return exact[0]
     return None
 
 

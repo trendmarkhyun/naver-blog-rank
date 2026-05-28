@@ -185,30 +185,38 @@ class PlaceSearchTests(unittest.TestCase):
         )
         self.assertIn("/hospital/1316635415", url)
 
-    def test_filter_candidates_by_partial_name(self) -> None:
+    def test_filter_candidates_exact_name_only(self) -> None:
+        candidates = [
+            PlaceCandidate("1", "아르스킨의원 홍대점", "서울 마포구", "피부과", "url1"),
+            PlaceCandidate("2", "나인의원 홍대입구역", "서울 마포구", "피부과", "url2"),
+            PlaceCandidate("3", "스타벅스 강남역점", "서울 강남구", "카페", "url3"),
+        ]
+        filtered = filter_candidates("아르스킨의원 홍대점", candidates)
+        self.assertEqual(len(filtered), 1)
+        self.assertEqual(filtered[0].name, "아르스킨의원 홍대점")
+
+    def test_filter_candidates_rejects_partial_match(self) -> None:
         candidates = [
             PlaceCandidate("1", "스타벅스 강남역점", "서울 강남구", "카페", "url1"),
             PlaceCandidate("2", "스타벅스 홍대점", "서울 마포구", "카페", "url2"),
-            PlaceCandidate("3", "이디야커피", "서울 서초구", "카페", "url3"),
         ]
-        filtered = filter_candidates("스타벅스", candidates)
-        self.assertEqual(len(filtered), 2)
-        self.assertEqual(filtered[0].name, "스타벅스 강남역점")
+        self.assertEqual(filter_candidates("스타벅스", candidates), [])
+        self.assertEqual(filter_candidates("홍대피부과", candidates), [])
 
     def test_pick_auto_candidate_exact_name(self) -> None:
         candidates = [
-            PlaceCandidate("1", "스타벅스 강남역점", "서울 강남구", "카페", "url1"),
-            PlaceCandidate("2", "스타벅스 홍대점", "서울 마포구", "카페", "url2"),
+            PlaceCandidate("1", "아르스킨의원 홍대점", "서울 마포구", "피부과", "url1"),
+            PlaceCandidate("2", "나인의원 홍대입구역", "서울 마포구", "피부과", "url2"),
         ]
-        picked = pick_auto_candidate("스타벅스 강남역점", candidates)
+        picked = pick_auto_candidate("아르스킨의원 홍대점", candidates)
         self.assertIsNotNone(picked)
         assert picked is not None
         self.assertEqual(picked.place_id, "1")
 
-    def test_pick_auto_candidate_requires_selection_for_many(self) -> None:
+    def test_pick_auto_candidate_requires_selection_for_duplicates(self) -> None:
         candidates = [
-            PlaceCandidate("1", "스타벅스 강남역점", "서울 강남구", "카페", "url1"),
-            PlaceCandidate("2", "스타벅스 홍대점", "서울 마포구", "카페", "url2"),
+            PlaceCandidate("1", "스타벅스", "서울 강남구", "카페", "url1"),
+            PlaceCandidate("2", "스타벅스", "서울 마포구", "카페", "url2"),
         ]
         self.assertIsNone(pick_auto_candidate("스타벅스", candidates))
 

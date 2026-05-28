@@ -276,7 +276,10 @@ def resolve_with_business_name(
         return
 
     if not candidates:
-        st.error("업체를 찾지 못했습니다. 업체명을 다시 확인하거나 URL 직접 입력을 이용해 주세요.")
+        st.error(
+            f"'{business_name}'와(과) 정확히 일치하는 업체를 찾지 못했습니다. "
+            "네이버 플레이스에 표시된 업체명 풀네임을 입력하거나 URL 직접 입력을 이용해 주세요."
+        )
         st.session_state[MANUAL_URL_KEY] = True
         return
 
@@ -405,7 +408,7 @@ def render_dashboard(member: MemberSession) -> None:
             keyword = st.text_input("검색 키워드", placeholder="예: 신부동 맛집")
             business_name = st.text_input(
                 "업체명",
-                placeholder="예: 스타벅스 강남역점",
+                placeholder="예: 아르스킨의원 홍대점 (네이버 표기와 동일하게)",
             )
             col_reg, col_lookup = st.columns(2)
             register_clicked = col_reg.form_submit_button("등록", use_container_width=True)
