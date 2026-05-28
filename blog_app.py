@@ -49,7 +49,7 @@ from src.blog_ui_styles import (
 )
 from src.playwright_bootstrap import ensure_playwright_browser
 from src.settings import load_settings
-from src.streamlit_guard import agent_debug_log, ensure_streamlit_keyboard_guard
+from src.streamlit_guard import ensure_streamlit_keyboard_guard
 
 st.set_page_config(
     page_title="시월기획 블로그 순위 체커",
@@ -128,20 +128,6 @@ def reload_profiles(member_id: str) -> list[BlogProfile]:
 def _save_keyword_slot(state_key: str, post_id: str, slot: int) -> None:
     """on_change: 해당 슬롯만 DB upsert (전체 리렌더 없음)."""
     value = st.session_state.get(state_key, "")
-    # #region agent log
-    agent_debug_log(
-        "C",
-        "blog_app.py:_save_keyword_slot",
-        "keyword slot saved",
-        {
-            "state_key": state_key,
-            "post_id": post_id,
-            "slot": slot,
-            "value_len": len(str(value)),
-        },
-        run_id="post-fix",
-    )
-    # #endregion
     _store().upsert_keyword(post_id, slot, value)
 
 
@@ -703,6 +689,7 @@ def render_dashboard(member: MemberSession) -> None:
         '<div class="blog-note">광고 제외 · 자연 노출 기준 · 최대 50위까지 탐색</div>',
         unsafe_allow_html=True,
     )
+    ensure_streamlit_keyboard_guard()
 
 
 member = require_member(extra_session_keys=(PROFILES_KEY, EXPANDED_KEY, MORE_POSTS_KEY))

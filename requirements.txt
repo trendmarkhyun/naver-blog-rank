@@ -1,5 +1,5 @@
 playwright>=1.40.0
 python-dotenv>=1.0.0
-streamlit>=1.33.0
+streamlit>=1.44.0
 supabase>=2.4.0,<2.11.0
 openpyxl>=3.1.0
