@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 MAX_BLOGS = 100
-MAX_POSTS = 40
+MAX_POSTS = 50
 MAX_KEYWORDS = 4
 BLOG_MAX_RANK = 50
 

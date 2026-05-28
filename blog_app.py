@@ -39,11 +39,9 @@ from src.blog_models import (
     rank_badge_class,
     summarize_profile_ranks,
 )
-from src.blog_posts import fetch_blog_posts, format_stat
+from src.blog_posts import fetch_blog_posts
 from src.blog_store import BlogStore
 from src.blog_ui_styles import (
-    ICON_EYE,
-    ICON_MESSAGE,
     inject_blog_ui_css,
     rank_badge_html,
     render_pills_html,
@@ -63,8 +61,8 @@ PROFILES_KEY = "blog_profiles"
 EXPANDED_KEY = "expanded_blog_ids"
 MORE_POSTS_KEY = "blog_more_posts"
 
-INITIAL_VISIBLE_POSTS = 3
-POST_TABLE_COLS = [4, 27, 10, 14.75, 14.75, 14.75, 14.75]
+INITIAL_VISIBLE_POSTS = 10
+POST_TABLE_COLS = [5, 38, 14.25, 14.25, 14.25, 14.25]
 
 inject_base_css()
 inject_blog_ui_css()
@@ -255,11 +253,21 @@ def _apply_and_persist_ranks(
     reload_profiles(member_id)
 
 
+def _capped_post_count(posts: list[BlogPost]) -> int:
+    return min(len(posts), MAX_POSTS)
+
+
+def _visible_post_count(profile_id: str, posts: list[BlogPost]) -> int:
+    total = _capped_post_count(posts)
+    if _is_more_posts_open(profile_id):
+        return total
+    return min(INITIAL_VISIBLE_POSTS, total)
+
+
 def render_post_table_header() -> None:
     labels = [
         "#",
         "포스팅 제목",
-        "조회/댓글",
         "키워드1",
         "키워드2",
         "키워드3",
@@ -269,7 +277,7 @@ def render_post_table_header() -> None:
     for index, (col, label) in enumerate(zip(cols, labels)):
         with col:
             marker = " blog-tbl-head-marker" if index == 0 else ""
-            kw_head = " blog-tbl-kw-head" if index >= 3 else ""
+            kw_head = " blog-tbl-kw-head" if index >= 2 else ""
             st.markdown(
                 f'<div class="blog-tbl-head-cell{marker}{kw_head}">{label}</div>',
                 unsafe_allow_html=True,
@@ -294,16 +302,8 @@ def render_post_row(
             f'<div class="pdate">{post.published_at or ""}</div>',
             unsafe_allow_html=True,
         )
-    with cols[2]:
-        st.markdown(
-            f'<div class="sc">'
-            f'<div class="si">{ICON_EYE}{format_stat(post.views)}</div>'
-            f'<div class="si">{ICON_MESSAGE}{format_stat(post.comments)}</div>'
-            f"</div>",
-            unsafe_allow_html=True,
-        )
 
-    for slot_index, col in enumerate(cols[3:], start=1):
+    for slot_index, col in enumerate(cols[2:], start=1):
         kw = next((k for k in post.keywords if k.slot == slot_index), None)
         keyword_value = kw.keyword if kw else ""
         kw_key = f"kw_{profile.id}_{post.id}_{slot_index}"
@@ -414,18 +414,16 @@ def render_profile_detail(member: MemberSession, profile: BlogProfile, settings)
                 profile = refreshed
 
     st.markdown('<div class="blog-expanded-marker"></div>', unsafe_allow_html=True)
-    render_profile_control_bar(member, profile, settings, len(profile.posts))
+    render_profile_control_bar(member, profile, settings, _capped_post_count(profile.posts))
 
     with st.container(border=True):
         render_post_table_header()
 
-        visible_count = len(profile.posts) if _is_more_posts_open(profile.id) else min(
-            INITIAL_VISIBLE_POSTS, len(profile.posts)
-        )
+        visible_count = _visible_post_count(profile.id, profile.posts)
         for index, post in enumerate(profile.posts[:visible_count], start=1):
             render_post_row(profile, post, index)
 
-        remaining = len(profile.posts) - INITIAL_VISIBLE_POSTS
+        remaining = _capped_post_count(profile.posts) - INITIAL_VISIBLE_POSTS
         if remaining > 0:
             label = (
                 "게시글 접기"

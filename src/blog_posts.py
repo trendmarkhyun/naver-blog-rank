@@ -37,24 +37,24 @@ class FetchPostsResult:
     error: str | None = None
 
 
-EXTRACT_POSTS_SCRIPT = """
-() => {
+EXTRACT_POSTS_SCRIPT = f"""
+() => {{
   const rows = [];
   const seen = new Set();
 
-  const addPost = (postId, title, dateText, viewsText, commentsText) => {
+  const addPost = (postId, title, dateText, viewsText, commentsText) => {{
     if (!postId || seen.has(postId)) return;
     seen.add(postId);
-    rows.push({
+    rows.push({{
       postId: String(postId),
       title: (title || '').trim(),
       dateText: (dateText || '').trim(),
       viewsText: (viewsText || '').trim(),
       commentsText: (commentsText || '').trim(),
-    });
-  };
+    }});
+  }};
 
-  const parseRow = (row) => {
+  const parseRow = (row) => {{
     const link = row.querySelector('a[href*="logNo="], a[href*="blog.naver.com/"]');
     if (!link) return;
     const href = link.getAttribute('href') || '';
@@ -70,10 +70,10 @@ EXTRACT_POSTS_SCRIPT = """
     const viewsText = row.querySelector('.hit, .view, .count')?.textContent || '';
     const commentsText = row.querySelector('.comment, .reply, .num')?.textContent || '';
     addPost(postId, title, dateText, viewsText, commentsText);
-  };
+  }};
 
   document.querySelectorAll('table.blog2_list tbody tr, .post-list li, .list_post li').forEach(parseRow);
-  document.querySelectorAll('a[href*="logNo="]').forEach((link) => {
+  document.querySelectorAll('a[href*="logNo="]').forEach((link) => {{
     const href = link.getAttribute('href') || '';
     const logMatch = href.match(/logNo=(\\d+)/);
     if (!logMatch) return;
@@ -82,10 +82,10 @@ EXTRACT_POSTS_SCRIPT = """
     const viewsText = row?.querySelector('.hit, .view')?.textContent || '';
     const commentsText = row?.querySelector('.comment, .reply')?.textContent || '';
     addPost(logMatch[1], link.textContent, dateText, viewsText, commentsText);
-  });
+  }});
 
-  return rows.slice(0, 40);
-}
+  return rows.slice(0, {MAX_POSTS});
+}}
 """
 
 

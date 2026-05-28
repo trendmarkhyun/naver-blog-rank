@@ -137,43 +137,44 @@ div[data-testid="stHorizontalBlock"]:has(.blog-tbl-head-marker){
 }
 div[data-testid="stHorizontalBlock"]:has(.blog-tbl-head-marker):hover{background:var(--bg-soft)!important}
 
+div[data-testid="stHorizontalBlock"]:has(.blog-tbl-head-marker)
+  > div[data-testid="column"]:nth-child(n+2){padding:0 8px!important}
+
 /* ── 테이블 데이터 행 ── */
-div[data-testid="stHorizontalBlock"]:has(> div[data-testid="column"]:nth-child(7):last-child):not(:has(.blog-tbl-head-marker)){
+div[data-testid="stHorizontalBlock"]:has(> div[data-testid="column"]:nth-child(6):last-child):not(:has(.blog-tbl-head-marker)){
   align-items:center!important;gap:6px!important;padding:6px 12px!important;
   border-bottom:1px solid var(--border-light)!important;min-height:56px!important;background:#fff;
 }
-div[data-testid="stHorizontalBlock"]:has(> div[data-testid="column"]:nth-child(7):last-child):not(:has(.blog-tbl-head-marker)):hover{
+div[data-testid="stHorizontalBlock"]:has(> div[data-testid="column"]:nth-child(6):last-child):not(:has(.blog-tbl-head-marker)):hover{
   background:var(--bg-soft)!important;
 }
 .nc{font-size:13px;color:var(--text-muted);text-align:center}
 .ptitle{font-size:14px;font-weight:500;color:var(--text-main);line-height:1.35;
   display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden}
 .pdate{font-size:12px;color:var(--text-muted);margin-top:2px}
-.sc{display:flex;flex-direction:column;gap:2px}
-.si{font-size:12px;color:var(--text-sub);white-space:nowrap}
 
 /* ── 키워드 + 순위 가로 배치 ── */
-div[data-testid="stHorizontalBlock"]:has(> div[data-testid="column"]:nth-child(7):last-child):not(:has(.blog-tbl-head-marker))
-  > div[data-testid="column"]:nth-child(n+4) div[data-testid="stVerticalBlock"]{
+div[data-testid="stHorizontalBlock"]:has(> div[data-testid="column"]:nth-child(6):last-child):not(:has(.blog-tbl-head-marker))
+  > div[data-testid="column"]:nth-child(n+3) div[data-testid="stVerticalBlock"]{
   flex-direction:row!important;flex-wrap:nowrap!important;align-items:center!important;
   gap:6px!important;width:100%!important;
 }
-div[data-testid="stHorizontalBlock"]:has(> div[data-testid="column"]:nth-child(7):last-child):not(:has(.blog-tbl-head-marker))
-  > div[data-testid="column"]:nth-child(n+4) .stTextInput{
+div[data-testid="stHorizontalBlock"]:has(> div[data-testid="column"]:nth-child(6):last-child):not(:has(.blog-tbl-head-marker))
+  > div[data-testid="column"]:nth-child(n+3) .stTextInput{
   flex:1 1 auto!important;min-width:0!important;margin:0!important;width:auto!important;
 }
-div[data-testid="stHorizontalBlock"]:has(> div[data-testid="column"]:nth-child(7):last-child):not(:has(.blog-tbl-head-marker))
-  > div[data-testid="column"]:nth-child(n+4) div[data-testid="stWidgetLabel"],
-div[data-testid="stHorizontalBlock"]:has(> div[data-testid="column"]:nth-child(7):last-child):not(:has(.blog-tbl-head-marker))
-  > div[data-testid="column"]:nth-child(n+4) .stTextInput label{display:none!important}
-div[data-testid="stHorizontalBlock"]:has(> div[data-testid="column"]:nth-child(7):last-child):not(:has(.blog-tbl-head-marker))
-  > div[data-testid="column"]:nth-child(n+4) .stTextInput input{
+div[data-testid="stHorizontalBlock"]:has(> div[data-testid="column"]:nth-child(6):last-child):not(:has(.blog-tbl-head-marker))
+  > div[data-testid="column"]:nth-child(n+3) div[data-testid="stWidgetLabel"],
+div[data-testid="stHorizontalBlock"]:has(> div[data-testid="column"]:nth-child(6):last-child):not(:has(.blog-tbl-head-marker))
+  > div[data-testid="column"]:nth-child(n+3) .stTextInput label{display:none!important}
+div[data-testid="stHorizontalBlock"]:has(> div[data-testid="column"]:nth-child(6):last-child):not(:has(.blog-tbl-head-marker))
+  > div[data-testid="column"]:nth-child(n+3) .stTextInput input{
   height:32px!important;min-height:32px!important;max-height:32px!important;
   font-size:13px!important;padding:0 8px!important;border-radius:8px!important;
   border:1px solid var(--border)!important;background:#fff!important;
 }
-div[data-testid="stHorizontalBlock"]:has(> div[data-testid="column"]:nth-child(7):last-child):not(:has(.blog-tbl-head-marker))
-  > div[data-testid="column"]:nth-child(n+4) .blog-kw-badge{
+div[data-testid="stHorizontalBlock"]:has(> div[data-testid="column"]:nth-child(6):last-child):not(:has(.blog-tbl-head-marker))
+  > div[data-testid="column"]:nth-child(n+3) .blog-kw-badge{
   flex:0 0 auto!important;width:auto!important;margin:0!important;
 }
 .rb{
@@ -242,17 +243,6 @@ div[data-testid="stVerticalBlockBorderWrapper"]:has(.blog-tbl-head-marker) .stBu
 }
 </style>
 """
-
-ICON_EYE = (
-    '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
-    'stroke-width="2" style="vertical-align:-2px;margin-right:3px">'
-    '<path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>'
-)
-ICON_MESSAGE = (
-    '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
-    'stroke-width="2" style="vertical-align:-2px;margin-right:3px">'
-    '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>'
-)
 
 
 def inject_blog_ui_css() -> None:
