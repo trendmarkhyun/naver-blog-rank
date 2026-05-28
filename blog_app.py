@@ -41,7 +41,13 @@ from src.blog_models import (
 )
 from src.blog_posts import fetch_blog_posts, format_stat
 from src.blog_store import BlogStore
-from src.blog_ui_styles import inject_blog_ui_css, render_pills_html
+from src.blog_ui_styles import (
+    ICON_EYE,
+    ICON_MESSAGE,
+    inject_blog_ui_css,
+    rank_badge_html,
+    render_pills_html,
+)
 from src.playwright_bootstrap import ensure_playwright_browser
 from src.settings import load_settings
 from src.supabase_store import SupabaseStoreError
@@ -253,11 +259,11 @@ def render_post_table_header() -> None:
     labels = [
         "#",
         "포스팅 제목",
-        "조회 / 댓글",
-        "키워드 1 / 순위",
-        "키워드 2 / 순위",
-        "키워드 3 / 순위",
-        "키워드 4 / 순위",
+        "조회/댓글",
+        "키워드1",
+        "키워드2",
+        "키워드3",
+        "키워드4",
     ]
     cols = st.columns(POST_TABLE_COLS, gap="small")
     for index, (col, label) in enumerate(zip(cols, labels)):
@@ -291,8 +297,8 @@ def render_post_row(
     with cols[2]:
         st.markdown(
             f'<div class="sc">'
-            f'<div class="si">👁 {format_stat(post.views)}</div>'
-            f'<div class="si">💬 {format_stat(post.comments)}</div>'
+            f'<div class="si">{ICON_EYE}{format_stat(post.views)}</div>'
+            f'<div class="si">{ICON_MESSAGE}{format_stat(post.comments)}</div>'
             f"</div>",
             unsafe_allow_html=True,
         )
@@ -327,7 +333,7 @@ def render_post_row(
                 current_text,
             )
             st.markdown(
-                f'<div class="blog-kw-badge"><div class="rb {css}">{label}</div></div>',
+                rank_badge_html(label, css),
                 unsafe_allow_html=True,
             )
 
@@ -352,10 +358,49 @@ def _render_search_mode_radio(
     return selected
 
 
+def render_profile_control_bar(
+    member: MemberSession,
+    profile: BlogProfile,
+    settings,
+    post_count: int,
+) -> None:
+    store = _store()
+    global_mode = settings.blog_search_mode
+
+    left, center, right = st.columns([2.2, 2, 1.2], vertical_alignment="center")
+    with left:
+        st.markdown(
+            '<div class="blog-control-bar-marker"></div>'
+            f'<div class="blog-control-info">게시글 {post_count}개 · 광고 제외 자연 노출 기준</div>',
+            unsafe_allow_html=True,
+        )
+    with center:
+        current_effective = effective_search_mode(profile, global_mode)
+        selected_mode = _render_search_mode_radio(
+            key=f"mode_{profile.id}",
+            current_mode=current_effective,
+        )
+        if selected_mode != current_effective:
+            override = None if selected_mode == global_mode else selected_mode
+            store.update_profile_search_mode(member.id, profile.id, override)
+            reload_profiles(member.id)
+            st.rerun()
+    with right:
+        if st.button(
+            "순위 체크",
+            key=f"rank_check_{profile.id}",
+            type="secondary",
+            use_container_width=True,
+        ):
+            with st.spinner("순위 체크 중..."):
+                results = run_refresh_profile(profile, global_mode, settings.blog_max_rank)
+                _apply_and_persist_ranks(member.id, profile.id, results)
+            st.rerun()
+
+
 def render_profile_detail(member: MemberSession, profile: BlogProfile, settings) -> None:
     store = _store()
     global_mode = settings.blog_search_mode
-    max_rank = settings.blog_max_rank
 
     full_profile = store.load_profile_with_posts(member.id, profile.id)
     if full_profile is None:
@@ -368,56 +413,28 @@ def render_profile_detail(member: MemberSession, profile: BlogProfile, settings)
             if refreshed:
                 profile = refreshed
 
-    st.markdown('<div class="blog-detail">', unsafe_allow_html=True)
-    st.markdown('<div class="blog-detail-bar">', unsafe_allow_html=True)
-    bar_left, bar_right = st.columns([2, 3])
-    with bar_left:
-        st.markdown(
-            f'<div class="blog-detail-info">게시글 {len(profile.posts)}개 · 광고 제외 자연 노출 기준</div>',
-            unsafe_allow_html=True,
+    st.markdown('<div class="blog-expanded-marker"></div>', unsafe_allow_html=True)
+    render_profile_control_bar(member, profile, settings, len(profile.posts))
+
+    with st.container(border=True):
+        render_post_table_header()
+
+        visible_count = len(profile.posts) if _is_more_posts_open(profile.id) else min(
+            INITIAL_VISIBLE_POSTS, len(profile.posts)
         )
-    with bar_right:
-        seg_col, act_col = st.columns([2, 1])
-        with seg_col:
-            current_effective = effective_search_mode(profile, global_mode)
-            selected_mode = _render_search_mode_radio(
-                key=f"mode_{profile.id}",
-                current_mode=current_effective,
+        for index, post in enumerate(profile.posts[:visible_count], start=1):
+            render_post_row(profile, post, index)
+
+        remaining = len(profile.posts) - INITIAL_VISIBLE_POSTS
+        if remaining > 0:
+            label = (
+                "게시글 접기"
+                if _is_more_posts_open(profile.id)
+                else f"게시글 더보기 ({remaining}개 더)"
             )
-            if selected_mode != current_effective:
-                override = None if selected_mode == global_mode else selected_mode
-                store.update_profile_search_mode(member.id, profile.id, override)
-                reload_profiles(member.id)
+            if st.button(label, key=f"more_{profile.id}"):
+                _toggle_more_posts(profile.id)
                 st.rerun()
-
-        with act_col:
-            if st.button("순위 체크", key=f"rank_check_{profile.id}", use_container_width=True):
-                with st.spinner("순위 체크 중..."):
-                    results = run_refresh_profile(profile, global_mode, max_rank)
-                    _apply_and_persist_ranks(member.id, profile.id, results)
-                st.rerun()
-    st.markdown("</div>", unsafe_allow_html=True)
-
-    render_post_table_header()
-
-    visible_count = len(profile.posts) if _is_more_posts_open(profile.id) else min(
-        INITIAL_VISIBLE_POSTS, len(profile.posts)
-    )
-    for index, post in enumerate(profile.posts[:visible_count], start=1):
-        render_post_row(profile, post, index)
-
-    remaining = len(profile.posts) - INITIAL_VISIBLE_POSTS
-    if remaining > 0:
-        label = (
-            "게시글 접기"
-            if _is_more_posts_open(profile.id)
-            else f"게시글 더보기 ({remaining}개 더)"
-        )
-        if st.button(label, key=f"more_{profile.id}"):
-            _toggle_more_posts(profile.id)
-            st.rerun()
-
-    st.markdown("</div>", unsafe_allow_html=True)
 
 
 def render_profile_row(member: MemberSession, profile: BlogProfile, index: int) -> None:
@@ -427,16 +444,15 @@ def render_profile_row(member: MemberSession, profile: BlogProfile, index: int) 
     pills = summarize_profile_ranks(full.posts).to_labels()
     pills_html = render_pills_html(pills)
     display_url = profile.blog_url.replace("https://", "").replace("http://", "")
-
-    st.markdown('<div class="blog-row-wrap">', unsafe_allow_html=True)
+    expanded = profile.id in _get_expanded()
 
     cols = st.columns(
-        [0.35, 2.22, 1.42, 0.78, 1.0, 0.78],
+        [0.35, 2.2, 1.4, 1.0, 1.0, 0.55],
         vertical_alignment="center",
     )
     with cols[0]:
         st.markdown(
-            f'<div class="bnum"><div class="bnum-circle">{index}</div></div>',
+            f'<div class="blog-row-marker"><div class="bnum-circle">{index}</div></div>',
             unsafe_allow_html=True,
         )
     with cols[1]:
@@ -467,7 +483,6 @@ def render_profile_row(member: MemberSession, profile: BlogProfile, index: int) 
                 reload_profiles(member.id)
                 st.rerun()
         with btn_exp:
-            expanded = profile.id in _get_expanded()
             chev = "▲" if expanded else "▼"
             if st.button(
                 chev,
@@ -478,10 +493,8 @@ def render_profile_row(member: MemberSession, profile: BlogProfile, index: int) 
                 _toggle_expanded(profile.id)
                 st.rerun()
 
-    if profile.id in _get_expanded():
+    if expanded:
         render_profile_detail(member, profile, settings)
-
-    st.markdown("</div>", unsafe_allow_html=True)
 
 
 def render_add_row(member: MemberSession, profile_count: int) -> None:
@@ -513,7 +526,7 @@ def render_add_row(member: MemberSession, profile_count: int) -> None:
         with cols[3]:
             advertiser = st.text_input(
                 "광고주명",
-                placeholder="광고주명",
+                placeholder="광고주명 (선택)",
                 label_visibility="collapsed",
             )
         with cols[4]:
@@ -537,71 +550,73 @@ def render_add_row(member: MemberSession, profile_count: int) -> None:
 
 def render_global_bar(member: MemberSession, profiles: list[BlogProfile]) -> None:
     settings = _store().get_member_settings(member.id)
-    st.markdown('<div class="blog-global-bar">', unsafe_allow_html=True)
-    left, right = st.columns([1, 2])
-    with left:
-        st.markdown('<span style="font-size:13px;font-weight:500">전체 검색 기준</span>', unsafe_allow_html=True)
-    with right:
-        seg_col, btn_col = st.columns([2, 1])
-        with seg_col:
-            selected = _render_search_mode_radio(
-                key="global_search_mode",
-                current_mode=settings.blog_search_mode,
-                css_class="blog-seg-radio blog-global-seg",
-            )
-            if selected != settings.blog_search_mode:
-                _store().update_member_blog_search_mode(member.id, selected)
-                settings.blog_search_mode = selected
+    with st.container(border=True):
+        st.markdown('<div class="blog-global-footer-marker"></div>', unsafe_allow_html=True)
+        st.markdown(
+            '<div class="blog-global-title">전체 검색 기준</div>',
+            unsafe_allow_html=True,
+        )
+        selected = _render_search_mode_radio(
+            key="global_search_mode",
+            current_mode=settings.blog_search_mode,
+        )
+        if selected != settings.blog_search_mode:
+            _store().update_member_blog_search_mode(member.id, selected)
+            settings.blog_search_mode = selected
 
-        with btn_col:
-            if st.button("전체 순위 체크", type="primary", use_container_width=True):
-                if not profiles:
-                    st.info("등록된 블로그가 없습니다.")
+        if st.button("전체 순위 체크", type="primary", use_container_width=True):
+            if not profiles:
+                st.info("등록된 블로그가 없습니다.")
+            else:
+                results = run_refresh_all_with_progress(
+                    member.id,
+                    profiles,
+                    settings.blog_search_mode,
+                    settings.blog_max_rank,
+                )
+                if not results:
+                    st.info("입력된 키워드가 없습니다.")
                 else:
-                    results = run_refresh_all_with_progress(
-                        member.id,
-                        profiles,
-                        settings.blog_search_mode,
-                        settings.blog_max_rank,
-                    )
-                    if not results:
-                        st.info("입력된 키워드가 없습니다.")
-                    else:
-                        _persist_rank_results(member.id, results)
-                    st.rerun()
-    st.markdown("</div>", unsafe_allow_html=True)
+                    _persist_rank_results(member.id, results)
+                st.rerun()
 
 
 def render_dashboard(member: MemberSession) -> None:
     profiles = ensure_profiles(member.id)
     settings = _store().get_member_settings(member.id)
 
-    top_left, top_mid, top_right = st.columns([2, 1, 1])
-    with top_left:
-        st.markdown(f"### {BRAND_TITLE}")
-    with top_mid:
-        if st.button("전체 새로고침", key="reload_all", use_container_width=True):
-            for profile in profiles:
-                if profile.id in _get_expanded():
-                    _save_posts_from_fetch(member.id, profile)
-            reload_profiles(member.id)
-            st.rerun()
-    with top_right:
-        if profiles:
-            loaded = _store().load_all_with_posts(member.id)
-            xlsx_bytes = export_blogs_to_xlsx(
-                loaded,
-                global_mode=settings.blog_search_mode,
-            )
-            st.download_button(
-                "엑셀 저장",
-                data=xlsx_bytes,
-                file_name=default_export_filename(),
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                use_container_width=True,
-            )
-        else:
-            st.button("엑셀 저장", disabled=True, use_container_width=True)
+    act_left, act_right = st.columns([3, 1.2], vertical_alignment="center")
+    with act_left:
+        st.markdown(
+            '<div class="blog-action-header-marker"></div>'
+            f'<h2 class="blog-action-title">{BRAND_TITLE}</h2>',
+            unsafe_allow_html=True,
+        )
+    with act_right:
+        btn1, btn2 = st.columns(2)
+        with btn1:
+            if st.button("전체 새로고침", key="reload_all", use_container_width=True):
+                for profile in profiles:
+                    if profile.id in _get_expanded():
+                        _save_posts_from_fetch(member.id, profile)
+                reload_profiles(member.id)
+                st.rerun()
+        with btn2:
+            if profiles:
+                loaded = _store().load_all_with_posts(member.id)
+                xlsx_bytes = export_blogs_to_xlsx(
+                    loaded,
+                    global_mode=settings.blog_search_mode,
+                )
+                st.download_button(
+                    "엑셀 저장",
+                    data=xlsx_bytes,
+                    file_name=default_export_filename(),
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    use_container_width=True,
+                )
+            else:
+                st.button("엑셀 저장", disabled=True, use_container_width=True)
 
     st.markdown('<div class="blog-panel">', unsafe_allow_html=True)
     render_add_row(member, len(profiles))
@@ -623,7 +638,7 @@ def render_dashboard(member: MemberSession) -> None:
 member = require_member(extra_session_keys=(PROFILES_KEY, EXPANDED_KEY, MORE_POSTS_KEY))
 render_brand_header(
     member,
-    title="시월기획 블로그 순위 체커",
+    title="시월기획 블로그 순위 체크",
     subtitle=f"{member.display_name}님 · 최대 {MAX_BLOGS}개 블로그 · 게시글 {MAX_POSTS}개",
     extra_session_keys=(PROFILES_KEY, EXPANDED_KEY, MORE_POSTS_KEY),
 )

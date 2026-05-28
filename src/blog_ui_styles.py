@@ -1,216 +1,258 @@
-"""블로그 순위 체커 UI 스타일 (목업 기반)."""
+"""블로그 순위 체커 UI — SaaS 대시보드 스타일."""
+
+from __future__ import annotations
 
 BLOG_UI_CSS = """
 <style>
-/* ── 레이아웃 ── */
-.blog-wrap{padding:0.5rem 0 1.5rem 0}
-.blog-topbar{display:flex;align-items:center;gap:8px;margin-bottom:1.25rem;flex-wrap:wrap}
-.blog-page-title{font-size:16px;font-weight:500;color:#222;flex:1}
+@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
+
+:root{
+  --bg-page:#FFFFFF;
+  --bg-card:#FFFFFF;
+  --bg-soft:#FAFAFA;
+  --text-main:#111111;
+  --text-sub:#6B7280;
+  --text-muted:#9CA3AF;
+  --border:#E5E7EB;
+  --border-light:#F1F5F9;
+  --brand:#00C853;
+  --brand-hover:#00A844;
+  --rank-in-bg:#E8F5E9;
+  --rank-in-text:#2E7D32;
+  --rank-out-bg:#F3F4F6;
+  --rank-out-text:#6B7280;
+  --radius:10px;
+  --font:'Pretendard',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+}
+
+html,body,[class*="css"]{font-family:var(--font)!important;line-height:1.4!important}
+.stApp{background:var(--bg-page)!important}
+.block-container{max-width:1200px!important;padding-top:16px!important;padding-bottom:32px!important}
+
+/* ── 브랜드 헤더 ── */
+.main-title{font-size:20px!important;font-weight:700!important;color:var(--text-main)!important;margin:0!important}
+.sub-title{font-size:13px!important;color:var(--text-sub)!important;margin:4px 0 0!important}
+.header-logout .stButton>button{
+  height:36px!important;min-height:36px!important;padding:0 14px!important;
+  background:#fff!important;border:1px solid var(--border)!important;color:var(--text-main)!important;
+  font-size:13px!important;font-weight:500!important;border-radius:var(--radius)!important;box-shadow:none!important;
+}
+
+/* ── 메인 액션 헤더 ── */
+.blog-action-header{margin:20px 0 16px}
+.blog-action-title{font-size:28px;font-weight:700;color:var(--text-main);margin:0;line-height:1.3}
+div[data-testid="stHorizontalBlock"]:has(.blog-action-header-marker){
+  align-items:center!important;margin-bottom:16px!important;
+}
+div[data-testid="stHorizontalBlock"]:has(.blog-action-header-marker) .stButton>button,
+div[data-testid="stHorizontalBlock"]:has(.blog-action-header-marker) .stDownloadButton>button{
+  height:40px!important;min-height:40px!important;background:#fff!important;
+  border:1px solid var(--border)!important;color:var(--text-main)!important;
+  font-size:14px!important;font-weight:500!important;border-radius:var(--radius)!important;box-shadow:none!important;
+}
 
 /* ── 패널 ── */
-.blog-panel{border:0.5px solid #e0e0e0;border-radius:12px;overflow:hidden;background:#fff;margin-bottom:1.25rem}
-.blog-panel-header{display:flex;align-items:center;justify-content:space-between;padding:9px 14px;background:#f7f7f7;border-bottom:0.5px solid #e0e0e0}
-.blog-panel-title{font-size:13px;font-weight:500;color:#222}
-.blog-panel-count{font-size:11px;color:#888}
+.blog-panel{
+  border:1px solid var(--border);border-radius:12px;overflow:hidden;
+  background:var(--bg-card);margin-bottom:20px;
+}
+.blog-panel-header{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:14px 16px;border-bottom:1px solid var(--border-light);
+}
+.blog-panel-title{font-size:15px;font-weight:600;color:var(--text-main)}
+.blog-panel-count{font-size:13px;color:var(--text-sub)}
+.blog-add-row{padding:12px 16px;border-bottom:1px solid var(--border-light);background:var(--bg-soft)}
+.blog-add-plus{
+  width:44px;height:44px;border-radius:var(--radius);border:1px solid var(--border);
+  background:#fff;display:flex;align-items:center;justify-content:center;
+  color:var(--text-sub);font-size:22px;line-height:1;
+}
 
-/* ── + 추가 행 ── */
-.blog-add-row{background:#f7f7f7;border-bottom:0.5px solid #e8e8e8;padding:0.25rem 0}
-.blog-add-plus{width:28px;height:28px;border-radius:50%;border:0.5px solid #ddd;background:#fff;display:flex;align-items:center;justify-content:center;color:#666;font-size:18px;font-weight:400;line-height:1;margin-top:4px}
+/* ── 블로그 목록 행 ── */
+.blog-row-marker{display:none}
+div[data-testid="stHorizontalBlock"]:has(.blog-row-marker){
+  min-height:52px!important;align-items:center!important;
+  padding:8px 16px!important;margin:0!important;
+  border-bottom:1px solid var(--border-light)!important;background:#fff!important;
+}
+div[data-testid="stHorizontalBlock"]:has(.blog-row-marker):hover{background:var(--bg-soft)!important}
+.bnum-circle{
+  width:28px;height:28px;border-radius:50%;background:var(--brand);color:#fff;
+  font-size:12px;font-weight:600;display:flex;align-items:center;justify-content:center;
+}
+.burl{font-size:14px;font-weight:500;color:var(--text-main);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bname{font-size:13px;color:var(--text-sub);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bowner{font-size:13px;color:var(--text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bpills{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.pill{padding:3px 8px;border-radius:6px;font-size:12px;font-weight:500;white-space:nowrap}
+.pg{background:var(--rank-in-bg);color:var(--rank-in-text)}
+.py{background:#FFF8E1;color:#F57F17}
+.pn{background:var(--rank-out-bg);color:var(--rank-out-text)}
 
-/* ── 블로그 행 ── */
-.blog-row-wrap{border-bottom:0.5px solid #ececec;background:#fff}
-.blog-row-wrap:last-child{border-bottom:none}
-.blog-row-wrap:hover{background:#f7f7f7}
-.bnum{display:flex;align-items:center;justify-content:center;padding:4px 0}
-.bnum-circle{width:18px;height:18px;border-radius:50%;background:#03C75A;color:#fff;font-size:10px;font-weight:500;display:flex;align-items:center;justify-content:center}
-.burl{font-size:12px;font-weight:500;color:#222;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:8px 0}
-.bname{font-size:12px;color:#666;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:8px 0}
-.bowner{font-size:11px;color:#888;white-space:nowrap;padding:8px 0}
-.bpills{display:flex;gap:3px;flex-wrap:wrap;padding:6px 0}
-.pill{height:17px;padding:0 6px;border-radius:8px;font-size:9px;font-weight:500;display:inline-flex;align-items:center;white-space:nowrap}
-.pg{background:#D4EDDA;color:#155724}
-.py{background:#FFF3CD;color:#856404}
-.pn{background:#f0f0f0;color:#888}
+/* ── 행 액션 버튼 ── */
+div[data-testid="stHorizontalBlock"]:has(.blog-row-marker)
+  > div[data-testid="column"]:last-child [data-testid="stHorizontalBlock"]{
+  display:inline-flex!important;gap:6px!important;justify-content:flex-end!important;
+  border:none!important;background:transparent!important;padding:0!important;
+}
+div[data-testid="stHorizontalBlock"]:has(.blog-row-marker)
+  > div[data-testid="column"]:last-child .stButton>button{
+  width:32px!important;height:32px!important;min-height:32px!important;padding:0!important;
+  border:1px solid var(--border)!important;border-radius:8px!important;
+  background:#fff!important;color:var(--text-sub)!important;font-size:13px!important;box-shadow:none!important;
+}
 
-/* ── 펼침 상세 ── */
-.blog-detail{border-top:0.5px solid #ececec;background:#fff;padding:0 0 0.5rem 0}
-.blog-detail-bar{background:#f7f7f7;border-bottom:0.5px solid #ececec;padding:7px 12px;margin-bottom:0}
-.blog-detail-info{font-size:11px;color:#666}
+/* ── 아코디언 펼침 영역 ── */
+.blog-expanded-marker{display:none}
 
-/* ── 게시글 테이블 ── */
+/* ── 펼침 툴바 ── */
+.blog-control-bar-marker{display:none}
+div[data-testid="stHorizontalBlock"]:has(.blog-control-bar-marker){
+  min-height:48px!important;align-items:center!important;
+  padding:8px 16px!important;margin:0!important;background:var(--bg-soft)!important;
+  border-bottom:1px solid var(--border-light)!important;
+}
+.blog-control-info{font-size:13px;color:var(--text-sub);line-height:1.4}
+div[data-testid="stHorizontalBlock"]:has(.blog-control-bar-marker) .stButton>button[kind="secondary"]{
+  height:36px!important;min-height:36px!important;background:#fff!important;
+  border:1px solid var(--border)!important;color:var(--text-main)!important;
+  font-size:13px!important;font-weight:500!important;border-radius:var(--radius)!important;
+}
+
+/* ── 테이블 카드 ── */
+div[data-testid="stVerticalBlockBorderWrapper"]:has(.blog-tbl-head-marker){
+  margin:0 16px 16px!important;padding:0!important;
+  border:1px solid var(--border-light)!important;border-radius:12px!important;
+  background:#fff!important;box-shadow:none!important;overflow-x:auto!important;
+}
 .blog-tbl-head-cell{
-  font-size:11px;font-weight:500;color:#666;white-space:nowrap;
-  overflow:hidden;text-overflow:ellipsis;line-height:1.3;padding:6px 0;
+  font-size:12px;font-weight:600;color:var(--text-sub);
+  min-height:40px;display:flex;align-items:center;white-space:nowrap;
 }
-.blog-tbl-kw-head{padding:6px 4px !important}
 div[data-testid="stHorizontalBlock"]:has(.blog-tbl-head-marker){
-  align-items:center !important;gap:4px !important;
-  padding:0 8px !important;margin:0 !important;
-  border-bottom:0.5px solid #ececec !important;background:#fff !important;
-  min-height:0 !important;
+  align-items:center!important;gap:6px!important;padding:0 12px!important;
+  border-bottom:1px solid var(--border-light)!important;background:var(--bg-soft)!important;
+  min-height:40px!important;margin:0!important;
 }
-div[data-testid="stHorizontalBlock"]:has(.blog-tbl-head-marker):hover{
-  background:#fff !important;
-}
-div[data-testid="stHorizontalBlock"]:has(.blog-tbl-head-marker)
-  > div[data-testid="column"]:nth-child(2){padding-right:4px !important}
-div[data-testid="stHorizontalBlock"]:has(.blog-tbl-head-marker)
-  > div[data-testid="column"]:nth-child(3){padding:0 4px !important}
-div[data-testid="stHorizontalBlock"]:has(.blog-tbl-head-marker)
-  > div[data-testid="column"]:nth-child(n+4){padding:0 4px !important}
-.ptitle{
-  font-size:12px;font-weight:500;line-height:1.3;min-height:2.6em;
-  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;
-}
-.pdate{font-size:10px;color:#888;margin-top:2px;line-height:1.2;min-height:12px}
-.sc{display:flex;flex-direction:column;gap:2px;justify-content:center}
-.si{font-size:11px;color:#666;line-height:1.35;white-space:nowrap}
-.blog-kw-badge{width:100%;margin:0;padding:0}
-.rb{
-  height:18px;min-height:18px;max-height:18px;
-  display:flex;align-items:center;justify-content:center;
-  border-radius:4px;font-size:10px;font-weight:500;width:100%;
-  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:0 4px;
-}
-.r1{background:#FFF3CD;color:#856404}
-.rt{background:#D4EDDA;color:#155724}
-.rm{background:#E1F5EE;color:#0F6E56}
-.rn{background:#f0f0f0;color:#888}
-.nc{
-  text-align:center;color:#888;font-size:11px;line-height:1;padding:0;
-  display:flex;align-items:center;justify-content:center;min-height:43px;
-}
+div[data-testid="stHorizontalBlock"]:has(.blog-tbl-head-marker):hover{background:var(--bg-soft)!important}
 
-/* ── 게시글 행 (7열 Streamlit columns) ── */
+/* ── 테이블 데이터 행 ── */
 div[data-testid="stHorizontalBlock"]:has(> div[data-testid="column"]:nth-child(7):last-child):not(:has(.blog-tbl-head-marker)){
-  align-items:center !important;gap:4px !important;
-  padding:7px 8px !important;margin:0 !important;
-  border-bottom:0.5px solid #ececec !important;
-  min-height:58px !important;background:#fff;
+  align-items:center!important;gap:6px!important;padding:6px 12px!important;
+  border-bottom:1px solid var(--border-light)!important;min-height:56px!important;background:#fff;
 }
 div[data-testid="stHorizontalBlock"]:has(> div[data-testid="column"]:nth-child(7):last-child):not(:has(.blog-tbl-head-marker)):hover{
-  background:#f7f7f7 !important;
+  background:var(--bg-soft)!important;
 }
-div[data-testid="stHorizontalBlock"]:has(> div[data-testid="column"]:nth-child(7):last-child):not(:has(.blog-tbl-head-marker))
-  > div[data-testid="column"]{
-  align-self:center !important;padding:0 !important;min-width:0 !important;
-}
-div[data-testid="stHorizontalBlock"]:has(> div[data-testid="column"]:nth-child(7):last-child):not(:has(.blog-tbl-head-marker))
-  > div[data-testid="column"]:nth-child(2){padding-right:4px !important}
-div[data-testid="stHorizontalBlock"]:has(> div[data-testid="column"]:nth-child(7):last-child):not(:has(.blog-tbl-head-marker))
-  > div[data-testid="column"]:nth-child(3){padding:0 4px !important}
-div[data-testid="stHorizontalBlock"]:has(> div[data-testid="column"]:nth-child(7):last-child):not(:has(.blog-tbl-head-marker))
-  > div[data-testid="column"]:nth-child(n+4){
-  padding:0 4px !important;
-}
+.nc{font-size:13px;color:var(--text-muted);text-align:center}
+.ptitle{font-size:14px;font-weight:500;color:var(--text-main);line-height:1.35;
+  display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden}
+.pdate{font-size:12px;color:var(--text-muted);margin-top:2px}
+.sc{display:flex;flex-direction:column;gap:2px}
+.si{font-size:12px;color:var(--text-sub);white-space:nowrap}
+
+/* ── 키워드 + 순위 가로 배치 ── */
 div[data-testid="stHorizontalBlock"]:has(> div[data-testid="column"]:nth-child(7):last-child):not(:has(.blog-tbl-head-marker))
   > div[data-testid="column"]:nth-child(n+4) div[data-testid="stVerticalBlock"]{
-  gap:3px !important;align-items:stretch !important;width:100% !important;
+  flex-direction:row!important;flex-wrap:nowrap!important;align-items:center!important;
+  gap:6px!important;width:100%!important;
 }
 div[data-testid="stHorizontalBlock"]:has(> div[data-testid="column"]:nth-child(7):last-child):not(:has(.blog-tbl-head-marker))
   > div[data-testid="column"]:nth-child(n+4) .stTextInput{
-  margin:0 !important;padding:0 !important;width:100% !important;
+  flex:1 1 auto!important;min-width:0!important;margin:0!important;width:auto!important;
 }
 div[data-testid="stHorizontalBlock"]:has(> div[data-testid="column"]:nth-child(7):last-child):not(:has(.blog-tbl-head-marker))
   > div[data-testid="column"]:nth-child(n+4) div[data-testid="stWidgetLabel"],
 div[data-testid="stHorizontalBlock"]:has(> div[data-testid="column"]:nth-child(7):last-child):not(:has(.blog-tbl-head-marker))
-  > div[data-testid="column"]:nth-child(n+4) .stTextInput label{
-  display:none !important;height:0 !important;margin:0 !important;padding:0 !important;
-}
-div[data-testid="stHorizontalBlock"]:has(> div[data-testid="column"]:nth-child(7):last-child):not(:has(.blog-tbl-head-marker))
-  > div[data-testid="column"]:nth-child(n+4) .stTextInput > div{
-  width:100% !important;
-}
+  > div[data-testid="column"]:nth-child(n+4) .stTextInput label{display:none!important}
 div[data-testid="stHorizontalBlock"]:has(> div[data-testid="column"]:nth-child(7):last-child):not(:has(.blog-tbl-head-marker))
   > div[data-testid="column"]:nth-child(n+4) .stTextInput input{
-  height:22px !important;min-height:22px !important;max-height:22px !important;
-  width:100% !important;max-width:100% !important;
-  font-size:11px !important;line-height:22px !important;
-  padding:0 5px !important;border-radius:4px !important;
-  border:0.5px solid #ddd !important;background:#fff !important;color:#222 !important;
-  box-sizing:border-box !important;
+  height:32px!important;min-height:32px!important;max-height:32px!important;
+  font-size:13px!important;padding:0 8px!important;border-radius:8px!important;
+  border:1px solid var(--border)!important;background:#fff!important;
 }
 div[data-testid="stHorizontalBlock"]:has(> div[data-testid="column"]:nth-child(7):last-child):not(:has(.blog-tbl-head-marker))
   > div[data-testid="column"]:nth-child(n+4) .blog-kw-badge{
-  width:100% !important;display:block !important;
+  flex:0 0 auto!important;width:auto!important;margin:0!important;
 }
-div[data-testid="stHorizontalBlock"]:has(> div[data-testid="column"]:nth-child(7):last-child):not(:has(.blog-tbl-head-marker))
-  > div[data-testid="column"]:nth-child(n+4) .blog-kw-badge .rb{
-  width:100% !important;box-sizing:border-box !important;
+.rb{
+  display:inline-flex;align-items:center;height:22px;padding:0 7px;
+  border-radius:5px;font-size:11px;font-weight:600;white-space:nowrap;line-height:1;
+}
+.rank-in{background:var(--rank-in-bg);color:var(--rank-in-text)}
+.rank-out{background:var(--rank-out-bg);color:var(--rank-out-text)}
+
+/* ── 라디오 (통합검색/블로그탭) ── */
+div[data-testid="stHorizontalBlock"]:has(.blog-control-bar-marker) div[role="radiogroup"],
+div[data-testid="stVerticalBlockBorderWrapper"]:has(.blog-global-footer-marker) div[role="radiogroup"]{
+  gap:12px!important;flex-wrap:nowrap!important;
+}
+div[data-testid="stHorizontalBlock"]:has(.blog-control-bar-marker) div[role="radiogroup"] label,
+div[data-testid="stVerticalBlockBorderWrapper"]:has(.blog-global-footer-marker) div[role="radiogroup"] label{
+  font-size:13px!important;font-weight:500!important;color:var(--text-main)!important;
+  background:transparent!important;padding:0!important;margin:0!important;
+}
+div[data-testid="stHorizontalBlock"]:has(.blog-control-bar-marker) div[role="radiogroup"] label[data-checked="true"],
+div[data-testid="stHorizontalBlock"]:has(.blog-control-bar-marker) div[role="radiogroup"] label:has(input:checked),
+div[data-testid="stVerticalBlockBorderWrapper"]:has(.blog-global-footer-marker) div[role="radiogroup"] label:has(input:checked){
+  color:var(--brand)!important;font-weight:600!important;
 }
 
-/* ── 하단 global-bar ── */
-.blog-global-bar{padding:0 2px;margin:8px 0}
-.blog-note{font-size:11px;color:#888;text-align:right;margin-top:8px}
-
-/* ── Streamlit 위젯 → 목업 톤 맞춤 ── */
+/* ── Primary / Form ── */
+.stButton>button[kind="primary"],
+.stDownloadButton>button,
+.stFormSubmitButton>button[kind="primary"]{
+  height:44px!important;min-height:44px!important;padding:0 20px!important;
+  background:var(--brand)!important;border:1px solid var(--brand)!important;
+  color:#fff!important;font-size:14px!important;font-weight:600!important;
+  border-radius:var(--radius)!important;box-shadow:none!important;
+}
+.stButton>button[kind="primary"]:hover{background:var(--brand-hover)!important;border-color:var(--brand-hover)!important}
 div[data-testid="stForm"] .stTextInput input{
-  height:30px;font-size:12px;border-radius:8px;
+  height:44px!important;font-size:14px!important;border-radius:var(--radius)!important;
+  border:1px solid var(--border)!important;padding:0 12px!important;
 }
-div[data-testid="column"] .stButton > button[kind="secondary"]{
-  height:34px;font-size:12px;border-radius:8px;
+
+/* ── 하단 글로벌 ── */
+.blog-global-footer-marker{display:none}
+div[data-testid="stVerticalBlockBorderWrapper"]:has(.blog-global-footer-marker){
+  border:1px solid var(--border)!important;border-radius:12px!important;
+  padding:16px!important;background:#fff!important;margin-top:8px!important;box-shadow:none!important;
 }
-div[data-testid="column"] .stButton > button[kind="primary"]{
-  height:30px;font-size:12px;border-radius:8px;background:#03C75A;border-color:#03C75A;
+.blog-global-title{font-size:15px;font-weight:600;color:var(--text-main);margin-bottom:8px}
+.blog-note{font-size:12px;color:var(--text-muted);text-align:center;margin-top:12px}
+div[data-testid="stVerticalBlockBorderWrapper"]:has(.blog-global-footer-marker) div[role="radiogroup"]{
+  gap:12px!important;flex-wrap:nowrap!important;
 }
-div[data-testid="column"] .stDownloadButton > button{
-  height:34px;font-size:12px;border-radius:8px;
+div[data-testid="stVerticalBlockBorderWrapper"]:has(.blog-global-footer-marker) div[role="radiogroup"] label{
+  font-size:13px!important;font-weight:500!important;color:var(--text-main)!important;
+  background:transparent!important;padding:0!important;margin:0!important;
 }
-/* ── 행 액션 버튼 (X, ▼) — 세그먼트 아이콘 그룹 ── */
-div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:nth-child(6){
-  display:flex !important;align-items:center !important;justify-content:flex-end !important;
-  min-width:84px;padding-right:2px;
+div[data-testid="stVerticalBlockBorderWrapper"]:has(.blog-global-footer-marker) div[role="radiogroup"] label:has(input:checked){
+  color:var(--brand)!important;font-weight:600!important;
 }
-div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:nth-child(6) [data-testid="stHorizontalBlock"]{
-  display:inline-flex !important;width:fit-content !important;max-width:100%;
-  align-items:center !important;justify-content:center !important;flex-wrap:nowrap !important;
-  gap:6px !important;height:auto !important;min-height:0 !important;
-  padding:3px;border:1px solid #e5e7eb;border-radius:10px;background:#f8f9fa;
-  box-shadow:0 1px 2px rgba(15,23,42,.04);
+div[data-testid="stVerticalBlockBorderWrapper"]:has(.blog-global-footer-marker) .stButton>button[kind="primary"]{
+  width:100%!important;margin-top:12px!important;height:48px!important;
 }
-div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:nth-child(6) [data-testid="column"]{
-  flex:0 0 34px !important;width:34px !important;min-width:34px !important;max-width:34px !important;
-  height:auto !important;align-self:center !important;
-}
-div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:nth-child(6) .stButton{
-  width:34px !important;min-width:34px !important;height:auto !important;margin:0 !important;
-}
-div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:nth-child(6) .stButton > button{
-  display:inline-flex !important;align-items:center !important;justify-content:center !important;
-  width:34px !important;min-width:34px !important;max-width:34px !important;
-  height:30px !important;min-height:30px !important;max-height:30px !important;
-  padding:0 !important;margin:0 !important;line-height:1 !important;
-  font-size:12px !important;font-weight:500 !important;
-  border:1px solid transparent !important;border-radius:7px !important;
-  background:#fff !important;color:#64748b !important;
-  box-shadow:none !important;transition:background .15s ease,color .15s ease,border-color .15s ease;
-}
-div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:nth-child(6) .stButton > button:hover{
-  background:#f1f5f9 !important;color:#334155 !important;border-color:#e2e8f0 !important;
-}
-div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:nth-child(6) .stButton:first-child > button:hover{
-  color:#dc2626 !important;background:#fef2f2 !important;border-color:#fecaca !important;
-}
-div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:nth-child(6) .stButton:last-child > button:hover{
-  color:#03C75A !important;background:#ecfdf3 !important;border-color:#bbf7d0 !important;
-}
-/* 세그먼트 라디오 (통합검색/블로그탭) */
-div.blog-seg-radio div[role="radiogroup"]{
-  gap:0;border:0.5px solid #ddd;border-radius:6px;overflow:hidden;flex-wrap:nowrap;
-}
-div.blog-seg-radio div[role="radiogroup"] label{
-  background:#fff;margin:0;padding:4px 10px;font-size:11px;border-right:0.5px solid #ddd;
-}
-div.blog-seg-radio div[role="radiogroup"] label:last-child{border-right:none}
-div.blog-seg-radio div[role="radiogroup"] label[data-checked="true"],
-div.blog-seg-radio div[role="radiogroup"] label:has(input:checked){
-  background:#03C75A;color:#fff;font-weight:500;
-}
-div.blog-global-seg div[role="radiogroup"] label{
-  padding:6px 14px;font-size:12px;
+div[data-testid="stVerticalBlockBorderWrapper"]:has(.blog-tbl-head-marker) .stButton>button{
+  width:100%!important;margin:8px 12px 12px!important;height:36px!important;
+  background:var(--bg-soft)!important;border:1px solid var(--border-light)!important;
+  color:var(--text-sub)!important;font-size:13px!important;border-radius:8px!important;
 }
 </style>
 """
+
+ICON_EYE = (
+    '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
+    'stroke-width="2" style="vertical-align:-2px;margin-right:3px">'
+    '<path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>'
+)
+ICON_MESSAGE = (
+    '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
+    'stroke-width="2" style="vertical-align:-2px;margin-right:3px">'
+    '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>'
+)
 
 
 def inject_blog_ui_css() -> None:
@@ -220,11 +262,13 @@ def inject_blog_ui_css() -> None:
 
 
 def render_pills_html(labels: list[tuple[str, str]]) -> str:
-    parts = []
-    for css_class, text in labels:
-        parts.append(f'<span class="pill {css_class}">{text}</span>')
-    return "".join(parts)
+    if not labels:
+        return '<span class="pill pn">키워드 미입력</span>'
+    return "".join(f'<span class="pill {css}">{text}</span>' for css, text in labels)
 
 
 def rank_badge_html(rank_label: str, css_class: str) -> str:
-    return f'<div class="rb {css_class}">{rank_label}</div>'
+    badge_cls = "rank-in" if css_class in {"r1", "rt", "rm"} else "rank-out"
+    if rank_label == "-":
+        badge_cls = "rank-out"
+    return f'<div class="blog-kw-badge"><span class="rb {badge_cls}">{rank_label}</span></div>'

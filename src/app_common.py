@@ -14,12 +14,13 @@ LOGO_PATH = PROJECT_ROOT / "assets" / "siwol_logo.png"
 
 BASE_CSS = """
 <style>
-.main-title { font-size: 1.55rem; font-weight: 700; margin: 0.35rem 0 0.15rem 0; line-height: 1.35; }
-.sub-title { color: #666; margin: 0 0 1rem 0; font-size: 1rem; }
-.brand-logo img { max-width: 140px; width: 140px; height: auto; margin-bottom: 0.25rem; }
-.login-offset { height: 3rem; }
-.login-panel { max-width: 420px; margin-top: 1.5rem; }
-.header-logout { display: flex; justify-content: flex-end; align-items: flex-start; padding-top: 0.25rem; }
+@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
+.main-title { font-size: 20px; font-weight: 700; margin: 0; line-height: 1.4; color: #111111; }
+.sub-title { color: #6B7280; margin: 4px 0 0 0; font-size: 13px; font-weight: 400; line-height: 1.4; }
+.brand-logo img { max-width: 120px; width: 120px; height: auto; margin-bottom: 8px; }
+.login-offset { height: 48px; }
+.login-panel { max-width: 420px; margin-top: 32px; }
+.header-logout { display: flex; justify-content: flex-end; align-items: center; }
 </style>
 """
 
