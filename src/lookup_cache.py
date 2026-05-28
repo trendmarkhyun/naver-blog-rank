@@ -36,6 +36,10 @@ def get_cached_lookup(keyword: str, place_url: str, max_rank: int) -> RankLookup
     return entry.result
 
 
+def clear_lookup_cache() -> None:
+    _cache.clear()
+
+
 def set_cached_lookup(keyword: str, place_url: str, max_rank: int, result: RankLookupResult) -> None:
     if result.error:
         return

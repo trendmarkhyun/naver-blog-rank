@@ -243,6 +243,11 @@ class PlaceSearchTests(unittest.TestCase):
 
 
 class LookupCacheTests(unittest.TestCase):
+    def setUp(self) -> None:
+        from src.lookup_cache import clear_lookup_cache
+
+        clear_lookup_cache()
+
     def test_cache_returns_result_within_ttl(self) -> None:
         from src.lookup import RankLookupResult
         from src.lookup_cache import get_cached_lookup, set_cached_lookup
