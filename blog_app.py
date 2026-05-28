@@ -39,7 +39,7 @@ from src.blog_models import (
     rank_badge_class,
     summarize_profile_ranks,
 )
-from src.blog_posts import fetch_blog_posts
+from src.blog_posts import FetchPostsResult, fetch_blog_posts, fetch_posts_via_http, posts_need_refresh
 from src.blog_store import BlogStore
 from src.blog_ui_styles import (
     inject_blog_ui_css,
@@ -130,7 +130,14 @@ def _save_keyword_slot(state_key: str, post_id: str, slot: int) -> None:
     _store().upsert_keyword(post_id, slot, value)
 
 
-def run_fetch_posts(blog_id: str):
+def run_fetch_posts(blog_id: str) -> FetchPostsResult:
+    try:
+        posts = fetch_posts_via_http(blog_id)
+        if posts:
+            return FetchPostsResult(posts=posts[:MAX_POSTS])
+    except Exception:
+        pass
+
     ensure_playwright_browser()
     return asyncio.run(fetch_blog_posts(blog_id))
 
@@ -186,25 +193,28 @@ def run_refresh_all_with_progress(
 
 def _save_posts_from_fetch(member_id: str, profile: BlogProfile) -> BlogProfile | None:
     store = _store()
+    existing_by_post_id = {post.post_id: post for post in profile.posts}
     result = run_fetch_posts(profile.blog_id)
     if result.error and not result.posts:
         st.warning(result.error)
         return store.load_profile_with_posts(member_id, profile.id)
 
-    posts = [
-        BlogPost(
-            id="",
-            blog_profile_id=profile.id,
-            post_id=item.post_id,
-            post_url=item.post_url,
-            title=item.title,
-            published_at=item.published_at,
-            views=item.views,
-            comments=item.comments,
-            fetched_at=store.now_iso(),
+    posts = []
+    for item in result.posts:
+        existing = existing_by_post_id.get(item.post_id)
+        posts.append(
+            BlogPost(
+                id=existing.id if existing else "",
+                blog_profile_id=profile.id,
+                post_id=item.post_id,
+                post_url=item.post_url,
+                title=item.title,
+                published_at=item.published_at,
+                views=item.views,
+                comments=item.comments,
+                fetched_at=store.now_iso(),
+            )
         )
-        for item in result.posts
-    ]
     store.upsert_posts(profile.id, posts)
     return store.load_profile_with_posts(member_id, profile.id)
 
@@ -367,7 +377,7 @@ def render_profile_control_bar(
     store = _store()
     global_mode = settings.blog_search_mode
 
-    left, center, right = st.columns([2.2, 2, 1.2], vertical_alignment="center")
+    left, center, right = st.columns([2.0, 2, 1.8], vertical_alignment="center")
     with left:
         st.markdown(
             '<div class="blog-control-bar-marker"></div>'
@@ -386,16 +396,29 @@ def render_profile_control_bar(
             reload_profiles(member.id)
             st.rerun()
     with right:
-        if st.button(
-            "순위 체크",
-            key=f"rank_check_{profile.id}",
-            type="secondary",
-            use_container_width=True,
-        ):
-            with st.spinner("순위 체크 중..."):
-                results = run_refresh_profile(profile, global_mode, settings.blog_max_rank)
-                _apply_and_persist_ranks(member.id, profile.id, results)
-            st.rerun()
+        btn_refresh, btn_rank = st.columns(2, gap="small")
+        with btn_refresh:
+            if st.button(
+                "게시글 새로고침",
+                key=f"refresh_posts_{profile.id}",
+                type="secondary",
+                use_container_width=True,
+            ):
+                with st.spinner("게시글 목록을 불러오는 중..."):
+                    refreshed = _save_posts_from_fetch(member.id, profile)
+                    if refreshed:
+                        st.rerun()
+        with btn_rank:
+            if st.button(
+                "순위 체크",
+                key=f"rank_check_{profile.id}",
+                type="secondary",
+                use_container_width=True,
+            ):
+                with st.spinner("순위 체크 중..."):
+                    results = run_refresh_profile(profile, global_mode, settings.blog_max_rank)
+                    _apply_and_persist_ranks(member.id, profile.id, results)
+                st.rerun()
 
 
 def render_profile_detail(member: MemberSession, profile: BlogProfile, settings) -> None:
@@ -407,8 +430,8 @@ def render_profile_detail(member: MemberSession, profile: BlogProfile, settings)
         return
     profile = full_profile
 
-    if not profile.posts:
-        with st.spinner("게시글 불러오는 중..."):
+    if posts_need_refresh(profile.posts):
+        with st.spinner("게시글 목록을 불러오는 중..."):
             refreshed = _save_posts_from_fetch(member.id, profile)
             if refreshed:
                 profile = refreshed

@@ -147,6 +147,23 @@ class BlogModelTests(unittest.TestCase):
         self.assertIn("광주", posts[0].title)
         self.assertEqual(posts[0].published_at, "2026. 5. 27.")
 
+    def test_parse_post_list_response_fallback(self) -> None:
+        from src.blog_posts import parse_post_list_response, posts_need_refresh
+
+        raw = (
+            '{"resultCode":"S","postList":[{"sellerServiceStatus":"N","logNo":"123",'
+            '"title":"%EA%B4%91%EC%A3%BC","addDate":"2026. 5. 27.","broken":"bad\\escape"}]}'
+        )
+        items = parse_post_list_response(raw)
+        self.assertEqual(len(items), 1)
+        self.assertEqual(items[0]["logNo"], "123")
+
+        class _Post:
+            title = "동영상..."
+
+        self.assertTrue(posts_need_refresh([_Post()]))
+        self.assertFalse(posts_need_refresh([type("P", (), {"title": "실제 제목"})()]))
+
 
 class BlogSearchMatchTests(unittest.TestCase):
     def test_find_post_rank(self) -> None:

@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import re
+import urllib.error
+import urllib.request
 from dataclasses import dataclass
 from urllib.parse import unquote_plus
 
@@ -111,12 +114,40 @@ def is_generic_title(title: str) -> bool:
     return normalized.startswith("동영상")
 
 
-def posts_from_api_payload(blog_id: str, payload: dict) -> list[FetchedBlogPost]:
-    if payload.get("resultCode") not in (None, "S"):
-        return []
+def posts_need_refresh(posts) -> bool:
+    """DB에 잘못 수집된 제목(동영상...)이 있으면 재수집."""
+    if not posts:
+        return True
+    return any(is_generic_title(getattr(post, "title", "")) for post in posts)
 
+
+def parse_post_list_response(raw: str) -> list[dict]:
+    try:
+        payload = json.loads(raw)
+        if payload.get("resultCode") not in (None, "S"):
+            return []
+        return payload.get("postList") or []
+    except json.JSONDecodeError:
+        items: list[dict] = []
+        for block in re.findall(r'\{"sellerServiceStatus"[^}]*\}', raw):
+            log_match = re.search(r'"logNo":"(\d+)"', block)
+            title_match = re.search(r'"title":"([^"]*)"', block)
+            date_match = re.search(r'"addDate":"([^"]*)"', block)
+            if not log_match or not title_match:
+                continue
+            items.append(
+                {
+                    "logNo": log_match.group(1),
+                    "title": title_match.group(1),
+                    "addDate": date_match.group(1) if date_match else "",
+                }
+            )
+        return items
+
+
+def posts_from_api_items(blog_id: str, items: list[dict]) -> list[FetchedBlogPost]:
     posts: list[FetchedBlogPost] = []
-    for item in payload.get("postList") or []:
+    for item in items:
         post_id = str(item.get("logNo") or "").strip()
         if not post_id:
             continue
@@ -132,6 +163,62 @@ def posts_from_api_payload(blog_id: str, payload: dict) -> list[FetchedBlogPost]
             )
         )
     return posts
+
+
+def posts_from_api_payload(blog_id: str, payload: dict) -> list[FetchedBlogPost]:
+    if payload.get("resultCode") not in (None, "S"):
+        return []
+    return posts_from_api_items(blog_id, payload.get("postList") or [])
+
+
+def _fetch_post_list_page(blog_id: str, page_num: int) -> list[dict]:
+    url = POST_TITLE_LIST_API.format(
+        blog_id=blog_id,
+        page=page_num,
+        count_per_page=API_PAGE_SIZE,
+    )
+    request = urllib.request.Request(
+        url,
+        headers={
+            "User-Agent": (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/122.0.0.0 Safari/537.36"
+            ),
+            "Referer": f"https://blog.naver.com/{blog_id}",
+        },
+    )
+    with urllib.request.urlopen(request, timeout=20) as response:
+        raw = response.read().decode("utf-8", "replace")
+    return parse_post_list_response(raw)
+
+
+def fetch_posts_via_http(blog_id: str) -> list[FetchedBlogPost]:
+    posts: list[FetchedBlogPost] = []
+    seen: set[str] = set()
+    page_num = 1
+
+    while len(posts) < MAX_POSTS:
+        items = _fetch_post_list_page(blog_id, page_num)
+        if not items:
+            break
+
+        batch = posts_from_api_items(blog_id, items)
+        added = 0
+        for post in batch:
+            if post.post_id in seen:
+                continue
+            seen.add(post.post_id)
+            posts.append(post)
+            added += 1
+            if len(posts) >= MAX_POSTS:
+                break
+
+        if added == 0 or len(items) < API_PAGE_SIZE:
+            break
+        page_num += 1
+
+    return posts[:MAX_POSTS]
 
 
 def _parse_int(text: str | None) -> int | None:
@@ -177,11 +264,36 @@ async def _fetch_posts_via_api(page: Page, blog_id: str) -> list[FetchedBlogPost
     page_num = 1
 
     while len(posts) < MAX_POSTS:
-        payload = await page.evaluate(
-            FETCH_POSTS_API_SCRIPT,
-            {"blogId": blog_id, "pageNum": page_num, "countPerPage": API_PAGE_SIZE},
-        )
-        batch = posts_from_api_payload(blog_id, payload or {})
+        try:
+            payload = await page.evaluate(
+                FETCH_POSTS_API_SCRIPT,
+                {"blogId": blog_id, "pageNum": page_num, "countPerPage": API_PAGE_SIZE},
+            )
+            if isinstance(payload, dict):
+                batch = posts_from_api_payload(blog_id, payload)
+            else:
+                batch = []
+        except Exception:
+            batch = []
+
+        if not batch:
+            try:
+                raw = await page.evaluate(
+                    """
+                    async ({ blogId, pageNum, countPerPage }) => {
+                      const url =
+                        `https://blog.naver.com/PostTitleListAsync.naver?blogId=${encodeURIComponent(blogId)}` +
+                        `&viewdate=&currentPage=${pageNum}&categoryNo=0&parentCategoryNo=0&countPerPage=${countPerPage}`;
+                      const res = await fetch(url, { credentials: 'include' });
+                      return await res.text();
+                    }
+                    """,
+                    {"blogId": blog_id, "pageNum": page_num, "countPerPage": API_PAGE_SIZE},
+                )
+                batch = posts_from_api_items(blog_id, parse_post_list_response(str(raw or "")))
+            except Exception:
+                batch = []
+
         if not batch:
             break
 
@@ -267,7 +379,17 @@ def _blog_id_from_frame_url(url: str) -> str | None:
 
 
 async def fetch_blog_posts(blog_id: str) -> FetchPostsResult:
+    try:
+        posts = fetch_posts_via_http(blog_id)
+        if posts:
+            return FetchPostsResult(posts=posts[:MAX_POSTS])
+    except (urllib.error.URLError, TimeoutError, OSError) as exc:
+        logger.warning("HTTP post fetch failed for %s: %s", blog_id, exc)
+    except Exception as exc:
+        logger.warning("HTTP post fetch error for %s: %s", blog_id, exc)
+
     settings = load_settings()
+    ensure_playwright_browser()
     home_url = f"https://blog.naver.com/{blog_id}"
 
     async with async_playwright() as playwright:
