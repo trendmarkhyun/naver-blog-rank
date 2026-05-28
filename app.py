@@ -53,6 +53,17 @@ st.markdown(
 )
 
 
+WATCHLIST_KEY = "watchlist_items"
+
+
+def _get_watchlist() -> list[WatchlistItem] | None:
+    return st.session_state.get(WATCHLIST_KEY)
+
+
+def _set_watchlist(items: list[WatchlistItem]) -> None:
+    st.session_state[WATCHLIST_KEY] = items
+
+
 def _store() -> SupabaseStore:
     return SupabaseStore()
 
@@ -84,7 +95,7 @@ def require_member() -> MemberSession:
 def logout_button() -> None:
     if st.button("로그아웃", key="logout"):
         st.session_state.pop("member", None)
-        st.session_state.pop("items", None)
+        st.session_state.pop(WATCHLIST_KEY, None)
         st.rerun()
 
 
@@ -93,10 +104,10 @@ def load_items(member_id: str) -> list[WatchlistItem]:
 
 
 def ensure_items(member_id: str) -> list[WatchlistItem]:
-    cached = st.session_state.get("items")
+    cached = _get_watchlist()
     if cached is None:
         cached = load_items(member_id)
-        st.session_state.items = cached
+        _set_watchlist(cached)
     return cached
 
 
@@ -142,7 +153,7 @@ def render_item(item: WatchlistItem, member: MemberSession) -> None:
     with c_del:
         if st.button("✕", key=f"del_{item.id}", help="등록 해제"):
             _store().delete_item(member.id, item.id)
-            st.session_state.items = load_items(member.id)
+            _set_watchlist(load_items(member.id))
             st.rerun()
     with c_body:
         st.markdown(f'<div class="{row_class}">', unsafe_allow_html=True)
@@ -162,10 +173,10 @@ def render_item(item: WatchlistItem, member: MemberSession) -> None:
 def auto_reload_items() -> None:
     member: MemberSession = st.session_state.member
     try:
-        st.session_state.items = load_items(member.id)
+        _set_watchlist(load_items(member.id))
     except SupabaseStoreError:
-        if st.session_state.get("items") is None:
-            st.session_state.items = []
+        if _get_watchlist() is None:
+            _set_watchlist([])
 
 
 def on_max_rank_change() -> None:
@@ -236,8 +247,9 @@ def render_dashboard(member: MemberSession) -> None:
                                 place_name=result.place_name,
                                 updated_at=result.collected_at,
                             )
-                            st.session_state.items = load_items(member.id)
-                            st.success(f"등록 완료 ({len(st.session_state.items)}/20)")
+                            updated_items = load_items(member.id)
+                            _set_watchlist(updated_items)
+                            st.success(f"등록 완료 ({len(updated_items)}/20)")
                             st.rerun()
                 except (WatchlistError, PlaceUrlError) as exc:
                     st.error(str(exc))
@@ -246,7 +258,7 @@ def render_dashboard(member: MemberSession) -> None:
                 except RuntimeError as exc:
                     st.error(str(exc))
                 except Exception as exc:
-                    st.error(f"순위 조회 실패: {exc}")
+                    st.error(f"등록/조회 실패: {exc}")
 
         st.caption("30분마다 GitHub Actions로도 자동 갱신됩니다.")
 
@@ -256,7 +268,7 @@ def render_dashboard(member: MemberSession) -> None:
         col_reload, col_refresh = st.columns(2)
         with col_reload:
             if st.button("목록 새로고침", key="reload", use_container_width=True):
-                st.session_state.items = load_items(member.id)
+                _set_watchlist(load_items(member.id))
                 st.rerun()
         with col_refresh:
             if st.button("지금 전체 갱신", key="refresh_all", use_container_width=True):
@@ -265,7 +277,7 @@ def render_dashboard(member: MemberSession) -> None:
                         with st.spinner("순위 갱신 중..."):
                             run_refresh_all(items, max_rank)
                             store.refresh_member_items(items)
-                        st.session_state.items = load_items(member.id)
+                        _set_watchlist(load_items(member.id))
                         st.rerun()
                     except RuntimeError as exc:
                         st.error(str(exc))
