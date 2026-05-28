@@ -15,15 +15,6 @@ sys.path.insert(0, str(PROJECT_ROOT))
 load_dotenv(PROJECT_ROOT / ".env")
 
 from src.auth import AuthError, MemberSession, login
-from src.login_storage import (
-    LOGIN_MANUAL_MODE_KEY,
-    clear_saved_login,
-    enable_manual_login_mode,
-    get_saved_login,
-    is_manual_login_mode,
-    mask_team_code,
-    save_login,
-)
 from src.lookup import RankLookupResult, lookup_rank, refresh_watchlist
 from src.place_search import PlaceCandidate, pick_auto_candidate, search_places_by_name
 from src.place_url import PlaceUrlError, parse_place_url
@@ -129,63 +120,6 @@ def render_brand_header(member: MemberSession) -> None:
         st.markdown("</div>", unsafe_allow_html=True)
 
 
-def _attempt_login(name: str, code: str, *, remember: bool) -> None:
-    st.session_state.member = login(name, code)
-    if remember:
-        save_login(name, code)
-    st.rerun()
-
-
-def render_saved_login_form(saved_name: str, saved_code: str) -> None:
-    st.text_input("이름", value=saved_name, disabled=True, key="saved_login_name_display")
-    st.text_input(
-        "팀원코드",
-        value=mask_team_code(saved_code),
-        disabled=True,
-        key="saved_login_code_display",
-    )
-
-    col_enter, col_switch = st.columns(2)
-    with col_enter:
-        if st.button("들어가기", type="primary", use_container_width=True, key="saved_login_enter"):
-            try:
-                _attempt_login(saved_name, saved_code, remember=True)
-            except AuthError as exc:
-                st.error(str(exc))
-                clear_saved_login()
-            except SupabaseStoreError as exc:
-                st.error(f"연결 오류: {exc}")
-    with col_switch:
-        if st.button("다른 계정으로 로그인", use_container_width=True, key="saved_login_switch"):
-            enable_manual_login_mode()
-            st.rerun()
-
-
-def render_manual_login_form() -> None:
-    saved = get_saved_login()
-    if saved and is_manual_login_mode():
-        if st.button("← 저장된 계정으로 돌아가기", key="back_to_saved_login"):
-            st.session_state.pop(LOGIN_MANUAL_MODE_KEY, None)
-            st.rerun()
-
-    with st.form("login_form"):
-        default_name = "" if is_manual_login_mode() else (saved[0] if saved else "")
-        name = st.text_input("이름", value=default_name, placeholder="예: 김민수")
-        code = st.text_input("팀원코드", type="password", placeholder="팀 공용 코드")
-        submitted = st.form_submit_button("들어가기", type="primary", use_container_width=True)
-
-    if submitted:
-        try:
-            member = login(name, code)
-            st.session_state.member = member
-            save_login(name, code)
-            st.rerun()
-        except AuthError as exc:
-            st.error(str(exc))
-        except SupabaseStoreError as exc:
-            st.error(f"연결 오류: {exc}")
-
-
 def require_member() -> MemberSession:
     if st.session_state.get("member"):
         return st.session_state.member
@@ -197,15 +131,21 @@ def require_member() -> MemberSession:
     with login_col:
         st.markdown('<div class="login-panel">', unsafe_allow_html=True)
         st.markdown("### 로그인")
+        st.caption("이름과 팀원코드를 입력하세요. 팀원코드는 관리자에게 문의하세요.")
 
-        saved = get_saved_login()
-        if saved and not is_manual_login_mode():
-            saved_name, saved_code = saved
-            st.caption(f"{saved_name}님, 저장된 계정으로 바로 들어갈 수 있습니다.")
-            render_saved_login_form(saved_name, saved_code)
-        else:
-            st.caption("이름과 팀원코드를 입력하세요. 팀원코드는 관리자에게 문의하세요.")
-            render_manual_login_form()
+        with st.form("login_form"):
+            name = st.text_input("이름", placeholder="예: 김민수")
+            code = st.text_input("팀원코드", type="password", placeholder="팀 공용 코드")
+            submitted = st.form_submit_button("들어가기", type="primary", use_container_width=True)
+
+        if submitted:
+            try:
+                st.session_state.member = login(name, code)
+                st.rerun()
+            except AuthError as exc:
+                st.error(str(exc))
+            except SupabaseStoreError as exc:
+                st.error(f"연결 오류: {exc}")
 
         st.markdown("</div>", unsafe_allow_html=True)
 
