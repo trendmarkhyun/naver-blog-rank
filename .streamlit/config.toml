@@ -9,5 +9,8 @@ font = "sans serif"
 headless = true
 port = 8501
 
+[client]
+toolbarMode = "minimal"
+
 [browser]
 gatherUsageStats = false
