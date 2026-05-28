@@ -242,6 +242,15 @@ class PlaceSearchTests(unittest.TestCase):
         self.assertEqual(score_candidate("스타벅스", candidate), 100)
 
 
+class LoginStorageTests(unittest.TestCase):
+    def test_mask_team_code(self) -> None:
+        from src.login_storage import mask_team_code
+
+        masked = mask_team_code("secret123")
+        self.assertNotIn("s", masked)
+        self.assertEqual(masked, "●" * len("secret123"))
+
+
 class WatchlistTests(unittest.TestCase):
     def test_add_remove_and_persist(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
