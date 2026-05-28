@@ -24,15 +24,23 @@ from src.ui_helpers import format_change, format_rank
 from src.watchlist import WatchlistError, WatchlistItem
 
 st.set_page_config(
-    page_title="네이버 플레이스 순위 모니터",
+    page_title="시월기획 플레이스 순위 모니터링",
+    page_icon=str(PROJECT_ROOT / "assets" / "siwol_logo.png"),
     layout="wide",
 )
+
+LOGO_PATH = PROJECT_ROOT / "assets" / "siwol_logo.png"
+BRAND_TITLE = "시월기획 플레이스 순위 모니터링"
 
 st.markdown(
     """
     <style>
-    .main-title { font-size: 1.75rem; font-weight: 700; margin-bottom: 0.2rem; }
-    .sub-title { color: #666; margin-bottom: 1rem; }
+    .main-title { font-size: 1.55rem; font-weight: 700; margin: 0.35rem 0 0.15rem 0; line-height: 1.35; }
+    .sub-title { color: #666; margin: 0 0 1rem 0; font-size: 1rem; }
+    .brand-logo img { max-width: 140px; width: 140px; height: auto; margin-bottom: 0.25rem; }
+    .login-offset { height: 3rem; }
+    .login-panel { max-width: 420px; margin-top: 1.5rem; }
+    .header-logout { display: flex; justify-content: flex-end; align-items: flex-start; padding-top: 0.25rem; }
     .result-card {
         background: linear-gradient(135deg, #f8fff9 0%, #ffffff 100%);
         border: 1px solid #d4edda; border-radius: 12px;
@@ -90,26 +98,56 @@ def _clear_place_search_state() -> None:
         st.session_state.pop(key, None)
 
 
+def render_logo(*, width: int = 140) -> None:
+    if LOGO_PATH.exists():
+        st.markdown('<div class="brand-logo">', unsafe_allow_html=True)
+        st.image(str(LOGO_PATH), width=width)
+        st.markdown("</div>", unsafe_allow_html=True)
+
+
+def render_brand_header(member: MemberSession) -> None:
+    brand_col, logout_col = st.columns([5, 1])
+    with brand_col:
+        render_logo()
+        st.markdown(f'<p class="main-title">{BRAND_TITLE}</p>', unsafe_allow_html=True)
+        st.markdown(
+            f'<p class="sub-title">{member.display_name}님 개인 모니터링</p>',
+            unsafe_allow_html=True,
+        )
+    with logout_col:
+        st.markdown('<div class="header-logout">', unsafe_allow_html=True)
+        logout_button()
+        st.markdown("</div>", unsafe_allow_html=True)
+
+
 def require_member() -> MemberSession:
     if st.session_state.get("member"):
         return st.session_state.member
 
-    st.markdown("### 로그인")
-    st.caption("이름과 팀원코드를 입력하세요. 팀원코드는 관리자에게 문의하세요.")
+    render_logo()
+    st.markdown('<div class="login-offset"></div>', unsafe_allow_html=True)
 
-    with st.form("login_form"):
-        name = st.text_input("이름", placeholder="예: 김민수")
-        code = st.text_input("팀원코드", type="password", placeholder="팀 공용 코드")
-        submitted = st.form_submit_button("들어가기", type="primary", use_container_width=True)
+    left_pad, login_col, _ = st.columns([1, 1.4, 1.6])
+    with login_col:
+        st.markdown('<div class="login-panel">', unsafe_allow_html=True)
+        st.markdown("### 로그인")
+        st.caption("이름과 팀원코드를 입력하세요. 팀원코드는 관리자에게 문의하세요.")
 
-    if submitted:
-        try:
-            st.session_state.member = login(name, code)
-            st.rerun()
-        except AuthError as exc:
-            st.error(str(exc))
-        except SupabaseStoreError as exc:
-            st.error(f"연결 오류: {exc}")
+        with st.form("login_form"):
+            name = st.text_input("이름", placeholder="예: 김민수")
+            code = st.text_input("팀원코드", type="password", placeholder="팀 공용 코드")
+            submitted = st.form_submit_button("들어가기", type="primary", use_container_width=True)
+
+        if submitted:
+            try:
+                st.session_state.member = login(name, code)
+                st.rerun()
+            except AuthError as exc:
+                st.error(str(exc))
+            except SupabaseStoreError as exc:
+                st.error(f"연결 오류: {exc}")
+
+        st.markdown("</div>", unsafe_allow_html=True)
 
     st.stop()
 
@@ -502,15 +540,7 @@ def render_dashboard(member: MemberSession) -> None:
 
 member = require_member()
 
-header_left, header_right = st.columns([4, 1])
-with header_left:
-    st.markdown('<p class="main-title">네이버 플레이스 순위 모니터</p>', unsafe_allow_html=True)
-    st.markdown(
-        f'<p class="sub-title">{member.display_name}님 · 팀원별 개인 모니터링</p>',
-        unsafe_allow_html=True,
-    )
-with header_right:
-    logout_button()
+render_brand_header(member)
 
 render_dashboard(member)
 
