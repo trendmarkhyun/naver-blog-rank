@@ -8,6 +8,7 @@ from src.blog_models import (
     BLOG_MAX_RANK,
     MAX_BLOGS,
     MAX_KEYWORDS,
+    MAX_POSTS,
     SEARCH_MODE_UNIFIED,
     BlogKeyword,
     BlogMemberSettings,
