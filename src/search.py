@@ -13,6 +13,8 @@ from src.parser import (
     IFRAME_SEARCH,
     MAP_SEARCH_URL,
     PLACE_LINK_SELECTORS,
+    infer_list_category,
+    list_url_for_category,
     list_url_for_keyword,
     merge_place_tuples,
     parse_places_from_apollo_payload,
@@ -23,13 +25,15 @@ from src.parser import (
 
 logger = logging.getLogger(__name__)
 
-RESPONSE_HINTS = ("search", "place", "allSearch", "list", "graphql")
+RESPONSE_HINTS = ("search", "place", "hospital", "allSearch", "list", "graphql")
 
 
 async def search_keyword_results(
     page: Page,
     keyword: str,
     max_rank: int,
+    *,
+    place_url: str | None = None,
 ) -> list[SearchResultItem]:
     captured_places: list[tuple[str, str]] = []
 
@@ -50,15 +54,24 @@ async def search_keyword_results(
 
     page.on("response", on_response)
 
-    list_url = list_url_for_keyword(keyword, max(max_rank, 20))
-    await page.goto(list_url, wait_until="domcontentloaded", timeout=60000)
+    display = max(max_rank, 20)
+    primary_category = infer_list_category(keyword, place_url)
+    categories = [primary_category]
+    for category in ("hospital", "restaurant", "place"):
+        if category not in categories:
+            categories.append(category)
 
-    apollo_places = await _collect_places_from_apollo(page, min_count=min(5, max_rank))
-    dom_places = await _collect_places_from_dom(page, max_rank)
-
-    all_places = merge_place_tuples([], apollo_places)
-    all_places = merge_place_tuples(all_places, captured_places)
-    all_places = merge_place_tuples(all_places, dom_places)
+    all_places: list[tuple[str, str]] = []
+    for category in categories:
+        list_url = list_url_for_category(keyword, display, category)
+        await page.goto(list_url, wait_until="domcontentloaded", timeout=60000)
+        apollo_places = await _collect_places_from_apollo(page, min_count=min(5, max_rank))
+        dom_places = await _collect_places_from_dom(page, max_rank)
+        all_places = merge_place_tuples(all_places, apollo_places)
+        all_places = merge_place_tuples(all_places, captured_places)
+        all_places = merge_place_tuples(all_places, dom_places)
+        if all_places:
+            break
 
     if not all_places:
         map_url = MAP_SEARCH_URL.format(keyword=quote(keyword))

@@ -13,7 +13,7 @@ APOLLO_EXTRACT_SCRIPT = """
 () => {
   const state = window.__APOLLO_STATE__ || {};
   const root = state.ROOT_QUERY || {};
-  const queryKeys = Object.keys(root).filter((key) => key.startsWith('placeList'));
+  const queryKeys = Object.keys(root).filter((key) => /list/i.test(key));
   if (!queryKeys.length) {
     return { error: 'placeList not found', places: [], total: 0 };
   }
@@ -55,11 +55,23 @@ RESTAURANT_LIST_URL = (
     "https://pcmap.place.naver.com/restaurant/list"
     "?query={keyword}&display={display}&locale=ko"
 )
+HOSPITAL_LIST_URL = (
+    "https://pcmap.place.naver.com/hospital/list"
+    "?query={keyword}&display={display}&locale=ko"
+)
 FOOD_KEYWORD_HINTS = ("맛집", "음식", "식당", "카페", "레스토랑", "술집", "밥집", "먹")
+MEDICAL_KEYWORD_HINTS = ("한의원", "병원", "의원", "치과", "약국", "한방", "정형외과", "피부과")
+CATEGORY_PATH_PATTERN = re.compile(
+    r"/(?:restaurant|place|hospital|hairshop|nailshop)/(\d+)"
+)
 # DOM 셀렉터 (네이버 UI 변경 시 이 파일만 수정)
 IFRAME_SEARCH = "iframe#searchIframe"
 PLACE_LINK_SELECTORS = [
     "a[href*='/place/']",
+    "a[href*='/hospital/']",
+    "a[href*='/restaurant/']",
+    "a[href*='/hairshop/']",
+    "a[href*='/nailshop/']",
     "a[href*='entry/place']",
     "a.place_bluelink",
     "span.place_bluelink",
@@ -71,6 +83,7 @@ MORE_BUTTON_SELECTORS = [
 ]
 
 PLACE_ID_PATTERNS = [
+    CATEGORY_PATH_PATTERN,
     re.compile(r"/place/(?:entry/)?(\d+)"),
     re.compile(r"/search/[^/]+/place/(\d+)"),
     re.compile(r"placeId[=:](\d+)"),
@@ -160,11 +173,36 @@ def parse_places_from_apollo_payload(payload: dict[str, Any]) -> tuple[list[tupl
     return places, total
 
 
-def list_url_for_keyword(keyword: str, display: int) -> str:
-    encoded = quote(keyword)
+def infer_list_category(keyword: str, place_url: str | None = None) -> str:
+    url = (place_url or "").lower()
+    if "/restaurant/" in url:
+        return "restaurant"
+    if "/hospital/" in url:
+        return "hospital"
     if any(hint in keyword for hint in FOOD_KEYWORD_HINTS):
+        return "restaurant"
+    if any(hint in keyword for hint in MEDICAL_KEYWORD_HINTS):
+        return "hospital"
+    return "place"
+
+
+def list_url_for_category(keyword: str, display: int, category: str) -> str:
+    encoded = quote(keyword)
+    if category == "restaurant":
         return RESTAURANT_LIST_URL.format(keyword=encoded, display=display)
+    if category == "hospital":
+        return HOSPITAL_LIST_URL.format(keyword=encoded, display=display)
     return PLACE_LIST_URL.format(keyword=encoded, display=display)
+
+
+def list_url_for_keyword(
+    keyword: str,
+    display: int,
+    *,
+    place_url: str | None = None,
+) -> str:
+    category = infer_list_category(keyword, place_url)
+    return list_url_for_category(keyword, display, category)
 
 
 def merge_place_tuples(

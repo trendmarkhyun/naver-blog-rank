@@ -9,7 +9,13 @@ from pathlib import Path
 from src.config_loader import ConfigError, load_config
 from src.config_loader import Business
 from src.matcher import SearchResultItem, find_business_rank
-from src.parser import list_url_for_keyword, parse_places_from_apollo_payload, to_search_results
+from src.parser import (
+    infer_list_category,
+    list_url_for_keyword,
+    parse_places_from_apollo_payload,
+    parse_places_from_dom_links,
+    to_search_results,
+)
 from src.place_url import PlaceUrlError, parse_place_url
 from src.storage import Storage
 from src.team_config import load_team_watchlist, stable_item_id
@@ -103,6 +109,36 @@ class ParserTests(unittest.TestCase):
         url = list_url_for_keyword("강남 미용실", 30)
         self.assertIn("/place/list", url)
 
+    def test_list_url_for_medical_keyword(self) -> None:
+        url = list_url_for_keyword("강남역 한의원", 50)
+        self.assertIn("/hospital/list", url)
+
+    def test_list_url_from_hospital_place_url(self) -> None:
+        url = list_url_for_keyword(
+            "강남역",
+            50,
+            place_url="https://m.place.naver.com/hospital/1316635415/home",
+        )
+        self.assertIn("/hospital/list", url)
+
+    def test_infer_list_category(self) -> None:
+        self.assertEqual(infer_list_category("강남역 한의원"), "hospital")
+        self.assertEqual(infer_list_category("공주시 맛집"), "restaurant")
+        self.assertEqual(
+            infer_list_category("강남", "https://m.place.naver.com/hospital/1/home"),
+            "hospital",
+        )
+
+    def test_parse_hospital_dom_links(self) -> None:
+        links = [
+            {
+                "href": "https://pcmap.place.naver.com/hospital/1316635415/home",
+                "text": "테스트한의원",
+            }
+        ]
+        places = parse_places_from_dom_links(links)
+        self.assertEqual(places, [("1316635415", "테스트한의원")])
+
 
 class PlaceUrlTests(unittest.TestCase):
     def test_parse_map_entry_url(self) -> None:
@@ -114,6 +150,12 @@ class PlaceUrlTests(unittest.TestCase):
             "https://pcmap.place.naver.com/restaurant/1476560900/home"
         )
         self.assertEqual(place_id, "1476560900")
+
+    def test_parse_hospital_url(self) -> None:
+        place_id = parse_place_url(
+            "https://m.place.naver.com/hospital/1316635415/home"
+        )
+        self.assertEqual(place_id, "1316635415")
 
     def test_parse_map_search_place_url(self) -> None:
         place_id = parse_place_url(

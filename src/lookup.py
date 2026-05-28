@@ -66,6 +66,7 @@ def _place_name_from_results(
 async def _fetch_place_name(page: Page, place_id: str) -> str | None:
     urls = (
         f"https://pcmap.place.naver.com/restaurant/{place_id}/home",
+        f"https://pcmap.place.naver.com/hospital/{place_id}/home",
         f"https://pcmap.place.naver.com/place/{place_id}/home",
     )
 
@@ -147,7 +148,9 @@ async def lookup_rank(
         async with async_playwright() as playwright:
             browser, _, page = await _create_browser_context(playwright)
             try:
-                results = await search_keyword_results(page, keyword, effective_max_rank)
+                results = await search_keyword_results(
+                    page, keyword, effective_max_rank, place_url=place_url
+                )
                 match = find_business_rank(business, results)
                 place_name = _place_name_from_results(results, place_id, match.rank)
                 if not place_name:
@@ -195,7 +198,9 @@ async def refresh_watchlist(
         browser, _, page = await _create_browser_context(playwright)
         try:
             for keyword, group_items in keyword_groups.items():
-                results = await search_keyword_results(page, keyword, max_rank)
+                results = await search_keyword_results(
+                    page, keyword, max_rank, place_url=group_items[0].place_url
+                )
                 for item in group_items:
                     business = Business(id=item.id, name=item.place_name, place_id=item.place_id)
                     match = find_business_rank(business, results)
