@@ -71,19 +71,28 @@ div[data-testid="column"] .stDownloadButton > button{
   height:34px;font-size:12px;border-radius:8px;
 }
 /* ── 행 액션 버튼 (X, ▼) ── */
+.blog-row-wrap div[data-testid="column"]:last-child{
+  min-width:76px;padding-left:4px;
+}
 .blog-row-wrap div[data-testid="column"]:last-child [data-testid="stHorizontalBlock"]{
-  gap:6px !important;justify-content:flex-end;align-items:center;
+  gap:12px !important;justify-content:flex-end;align-items:center;flex-wrap:nowrap;
+}
+.blog-row-wrap div[data-testid="column"]:last-child [data-testid="column"]{
+  flex:0 0 32px !important;min-width:32px !important;max-width:36px !important;width:32px !important;
+}
+.blog-row-wrap div[data-testid="column"]:last-child .stButton{
+  width:32px;min-width:32px;
 }
 .blog-row-wrap div[data-testid="column"]:last-child .stButton > button{
-  min-height:28px;height:28px;min-width:28px;width:28px !important;
-  padding:0;font-size:13px;border:none;background:transparent;color:#888;
-  box-shadow:none;margin:0 auto;
+  min-height:28px;height:28px;min-width:28px;max-width:32px;width:32px !important;
+  padding:0;font-size:13px;border:0.5px solid #e0e0e0;border-radius:6px;
+  background:#fff;color:#666;box-shadow:none;margin:0;
 }
 .blog-row-wrap div[data-testid="column"]:last-child .stButton > button:hover{
-  background:#f0f0f0;color:#444;
+  background:#f0f0f0;color:#444;border-color:#ccc;
 }
 .blog-row-wrap div[data-testid="column"]:last-child .stButton:first-child > button:hover{
-  color:#dc3545;
+  color:#dc3545;border-color:#f5c6cb;background:#fff5f5;
 }
 /* 세그먼트 라디오 (통합검색/블로그탭) */
 div.blog-seg-radio div[role="radiogroup"]{
