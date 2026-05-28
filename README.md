@@ -42,4 +42,5 @@ streamlit run blog_app.py
 - 블로그 URL 최대 100개 등록
 - 게시글 40개 · 키워드 4열 가로 배치
 - 통합검색 / 블로그탭 순위 체크 (광고 제외, 50위)
+- GitHub Actions 30분마다 Supabase 순위 자동 갱신 (`Supabase Blog Rank Monitor`)
 - 엑셀 저장
