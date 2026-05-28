@@ -16,6 +16,7 @@ load_dotenv(PROJECT_ROOT / ".env")
 
 from src.auth import AuthError, MemberSession, login
 from src.lookup import RankLookupResult, lookup_rank, refresh_watchlist
+from src.place_search import PlaceCandidate, pick_auto_candidate, search_places_by_name
 from src.place_url import PlaceUrlError, parse_place_url
 from src.playwright_bootstrap import ensure_playwright_browser
 from src.supabase_store import SupabaseStore, SupabaseStoreError
@@ -47,6 +48,10 @@ st.markdown(
     .watch-meta { color: #666; font-size: 0.9rem; }
     .watch-rank { font-weight: 700; color: #03C75A; font-size: 1.05rem; }
     .watch-changed { color: #b8860b; font-weight: 600; font-size: 0.85rem; }
+    .candidate-row {
+        border: 1px solid #e8ece9; border-radius: 10px;
+        padding: 0.75rem 0.85rem; margin-bottom: 0.5rem; background: #fafbfa;
+    }
     </style>
     """,
     unsafe_allow_html=True,
@@ -54,6 +59,12 @@ st.markdown(
 
 
 WATCHLIST_KEY = "watchlist_items"
+CANDIDATES_KEY = "place_candidates"
+PENDING_ACTION_KEY = "pending_action"
+PENDING_KEYWORD_KEY = "pending_keyword"
+PENDING_MAX_RANK_KEY = "pending_max_rank"
+SEARCH_QUERY_KEY = "place_search_query"
+MANUAL_URL_KEY = "manual_url_expanded"
 
 
 def _get_watchlist() -> list[WatchlistItem] | None:
@@ -66,6 +77,17 @@ def _set_watchlist(items: list[WatchlistItem]) -> None:
 
 def _store() -> SupabaseStore:
     return SupabaseStore()
+
+
+def _clear_place_search_state() -> None:
+    for key in (
+        CANDIDATES_KEY,
+        PENDING_ACTION_KEY,
+        PENDING_KEYWORD_KEY,
+        PENDING_MAX_RANK_KEY,
+        SEARCH_QUERY_KEY,
+    ):
+        st.session_state.pop(key, None)
 
 
 def require_member() -> MemberSession:
@@ -96,6 +118,7 @@ def logout_button() -> None:
     if st.button("로그아웃", key="logout"):
         st.session_state.pop("member", None)
         st.session_state.pop(WATCHLIST_KEY, None)
+        _clear_place_search_state()
         st.rerun()
 
 
@@ -116,6 +139,11 @@ def run_lookup(keyword: str, place_url: str, max_rank: int) -> RankLookupResult:
     return asyncio.run(
         lookup_rank(keyword.strip(), place_url.strip(), max_rank=max_rank)
     )
+
+
+def run_place_search(business_name: str) -> list[PlaceCandidate]:
+    ensure_playwright_browser()
+    return asyncio.run(search_places_by_name(business_name))
 
 
 def run_refresh_all(items: list[WatchlistItem], max_rank: int) -> None:
@@ -141,6 +169,166 @@ def render_lookup_result(result: RankLookupResult) -> None:
         if result.place_name:
             st.markdown(f"**업체명:** {result.place_name}")
         st.caption(f"플레이스 ID: `{result.place_id}` · {result.collected_at}")
+
+
+def register_candidate(
+    store: SupabaseStore,
+    member: MemberSession,
+    candidate: PlaceCandidate,
+    keyword: str,
+    max_rank: int,
+) -> None:
+    with st.spinner("순위 조회 및 등록 중..."):
+        result = run_lookup(keyword, candidate.place_url, max_rank)
+
+    if result.error and not result.place_id:
+        st.error(result.error)
+        return
+
+    item = store.add_item(
+        member.id,
+        place_url=candidate.place_url,
+        keyword=keyword.strip(),
+        place_name=result.place_name or candidate.name,
+    )
+    store.apply_rank_refresh(
+        item,
+        rank=result.rank,
+        found=result.found,
+        place_name=result.place_name or candidate.name,
+        updated_at=result.collected_at,
+    )
+    updated_items = load_items(member.id)
+    _set_watchlist(updated_items)
+    _clear_place_search_state()
+    st.success(f"등록 완료: {candidate.name} ({len(updated_items)}/20)")
+    st.rerun()
+
+
+def lookup_candidate(candidate: PlaceCandidate, keyword: str, max_rank: int) -> None:
+    with st.spinner("네이버 지도 검색 중..."):
+        result = run_lookup(keyword, candidate.place_url, max_rank)
+    st.markdown("**조회 결과**")
+    render_lookup_result(result)
+
+
+def resolve_with_url(
+    store: SupabaseStore,
+    member: MemberSession,
+    *,
+    keyword: str,
+    place_url: str,
+    max_rank: int,
+    register: bool,
+    lookup: bool,
+) -> None:
+    parse_place_url(place_url.strip())
+    with st.spinner("네이버 지도 검색 중..."):
+        result = run_lookup(keyword, place_url, max_rank)
+
+    if lookup:
+        st.markdown("**조회 결과**")
+        render_lookup_result(result)
+
+    if register:
+        if result.error and not result.place_id:
+            st.error(result.error)
+            return
+        item = store.add_item(
+            member.id,
+            place_url=place_url.strip(),
+            keyword=keyword.strip(),
+            place_name=result.place_name or "",
+        )
+        store.apply_rank_refresh(
+            item,
+            rank=result.rank,
+            found=result.found,
+            place_name=result.place_name,
+            updated_at=result.collected_at,
+        )
+        updated_items = load_items(member.id)
+        _set_watchlist(updated_items)
+        _clear_place_search_state()
+        st.success(f"등록 완료 ({len(updated_items)}/20)")
+        st.rerun()
+
+
+def resolve_with_business_name(
+    store: SupabaseStore,
+    member: MemberSession,
+    *,
+    keyword: str,
+    business_name: str,
+    max_rank: int,
+    register: bool,
+    lookup: bool,
+) -> None:
+    with st.spinner("업체 검색 중..."):
+        candidates = run_place_search(business_name)
+
+    auto_candidate = pick_auto_candidate(business_name, candidates)
+    if auto_candidate is not None:
+        if register:
+            register_candidate(store, member, auto_candidate, keyword, max_rank)
+        else:
+            lookup_candidate(auto_candidate, keyword, max_rank)
+        return
+
+    if not candidates:
+        st.error("업체를 찾지 못했습니다. 업체명을 다시 확인하거나 URL 직접 입력을 이용해 주세요.")
+        st.session_state[MANUAL_URL_KEY] = True
+        return
+
+    st.session_state[CANDIDATES_KEY] = candidates
+    st.session_state[SEARCH_QUERY_KEY] = business_name
+    st.session_state[PENDING_KEYWORD_KEY] = keyword.strip()
+    st.session_state[PENDING_MAX_RANK_KEY] = max_rank
+    st.session_state[PENDING_ACTION_KEY] = "register" if register else "lookup"
+    st.rerun()
+
+
+def render_candidate_picker(store: SupabaseStore, member: MemberSession) -> None:
+    candidates: list[PlaceCandidate] = st.session_state.get(CANDIDATES_KEY) or []
+    if not candidates:
+        return
+
+    keyword = st.session_state.get(PENDING_KEYWORD_KEY, "")
+    max_rank = int(st.session_state.get(PENDING_MAX_RANK_KEY) or member.max_rank)
+    action = st.session_state.get(PENDING_ACTION_KEY, "register")
+    search_query = st.session_state.get(SEARCH_QUERY_KEY, "")
+
+    st.markdown("**업체 선택**")
+    st.caption(f"'{search_query}' 검색 결과 {len(candidates)}건 — 등록할 업체를 선택해 주세요.")
+
+    for candidate in candidates:
+        col_info, col_btn = st.columns([4.5, 1.5])
+        with col_info:
+            st.markdown(
+                f'<div class="candidate-row">'
+                f'<div class="watch-name">{candidate.name}</div>'
+                f'<div class="watch-meta">{candidate.summary}</div>'
+                f"</div>",
+                unsafe_allow_html=True,
+            )
+        with col_btn:
+            if st.button("선택", key=f"pick_{candidate.place_id}", use_container_width=True):
+                if action == "register":
+                    register_candidate(store, member, candidate, keyword, max_rank)
+                else:
+                    lookup_candidate(candidate, keyword, max_rank)
+                    _clear_place_search_state()
+
+    col_cancel, col_manual = st.columns(2)
+    with col_cancel:
+        if st.button("다시 검색", key="cancel_candidate_pick", use_container_width=True):
+            _clear_place_search_state()
+            st.rerun()
+    with col_manual:
+        if st.button("URL 직접 입력", key="open_manual_url", use_container_width=True):
+            _clear_place_search_state()
+            st.session_state[MANUAL_URL_KEY] = True
+            st.rerun()
 
 
 def render_item(item: WatchlistItem, member: MemberSession) -> None:
@@ -204,13 +392,21 @@ def render_dashboard(member: MemberSession) -> None:
             on_change=on_max_rank_change,
         )
 
-        with st.form("input_form"):
-            keyword = st.text_input("검색 키워드", placeholder="예: 신부동 맛집")
-            place_url = st.text_input(
+        manual_expanded = bool(st.session_state.get(MANUAL_URL_KEY))
+        with st.expander("URL로 직접 입력", expanded=manual_expanded):
+            st.caption("업체명으로 찾지 못할 때만 사용하세요.")
+            manual_place_url = st.text_input(
                 "플레이스 URL",
                 placeholder="https://map.naver.com/p/entry/place/1234567890",
+                key="manual_place_url",
             )
-            place_name = st.text_input("업체명 (선택)", placeholder="자동 조회 시 채워짐")
+
+        with st.form("input_form"):
+            keyword = st.text_input("검색 키워드", placeholder="예: 신부동 맛집")
+            business_name = st.text_input(
+                "업체명",
+                placeholder="예: 스타벅스 강남역점",
+            )
             col_reg, col_lookup = st.columns(2)
             register_clicked = col_reg.form_submit_button("등록", use_container_width=True)
             lookup_clicked = col_lookup.form_submit_button(
@@ -218,39 +414,19 @@ def render_dashboard(member: MemberSession) -> None:
             )
 
         if register_clicked or lookup_clicked:
-            if not keyword.strip() or not place_url.strip():
-                st.error("키워드와 플레이스 URL을 모두 입력해 주세요.")
-            else:
+            if not keyword.strip():
+                st.error("검색 키워드를 입력해 주세요.")
+            elif manual_place_url.strip():
                 try:
-                    parse_place_url(place_url.strip())
-                    with st.spinner("네이버 지도 검색 중..."):
-                        result = run_lookup(keyword, place_url, max_rank)
-
-                    if lookup_clicked:
-                        st.markdown("**조회 결과**")
-                        render_lookup_result(result)
-
-                    if register_clicked:
-                        if result.error and not result.place_id:
-                            st.error(result.error)
-                        else:
-                            item = store.add_item(
-                                member.id,
-                                place_url=place_url.strip(),
-                                keyword=keyword.strip(),
-                                place_name=result.place_name or place_name.strip(),
-                            )
-                            store.apply_rank_refresh(
-                                item,
-                                rank=result.rank,
-                                found=result.found,
-                                place_name=result.place_name,
-                                updated_at=result.collected_at,
-                            )
-                            updated_items = load_items(member.id)
-                            _set_watchlist(updated_items)
-                            st.success(f"등록 완료 ({len(updated_items)}/20)")
-                            st.rerun()
+                    resolve_with_url(
+                        store,
+                        member,
+                        keyword=keyword,
+                        place_url=manual_place_url,
+                        max_rank=max_rank,
+                        register=register_clicked,
+                        lookup=lookup_clicked,
+                    )
                 except (WatchlistError, PlaceUrlError) as exc:
                     st.error(str(exc))
                 except SupabaseStoreError as exc:
@@ -259,6 +435,29 @@ def render_dashboard(member: MemberSession) -> None:
                     st.error(str(exc))
                 except Exception as exc:
                     st.error(f"등록/조회 실패: {exc}")
+            elif not business_name.strip():
+                st.error("업체명을 입력하거나 URL 직접 입력을 이용해 주세요.")
+            else:
+                try:
+                    resolve_with_business_name(
+                        store,
+                        member,
+                        keyword=keyword,
+                        business_name=business_name.strip(),
+                        max_rank=max_rank,
+                        register=register_clicked,
+                        lookup=lookup_clicked,
+                    )
+                except (WatchlistError, PlaceUrlError) as exc:
+                    st.error(str(exc))
+                except SupabaseStoreError as exc:
+                    st.error(f"저장 오류: {exc}")
+                except RuntimeError as exc:
+                    st.error(str(exc))
+                except Exception as exc:
+                    st.error(f"등록/조회 실패: {exc}")
+
+        render_candidate_picker(store, member)
 
         st.caption("30분마다 GitHub Actions로도 자동 갱신됩니다.")
 
@@ -289,7 +488,7 @@ def render_dashboard(member: MemberSession) -> None:
         auto_reload_items()
 
         if not items:
-            st.info("좌측에서 키워드와 URL을 입력한 뒤 [등록] 또는 [순위 조회]를 눌러 주세요.")
+            st.info("좌측에서 키워드와 업체명을 입력한 뒤 [등록] 또는 [순위 조회]를 눌러 주세요.")
         else:
             latest = max((i.updated_at for i in items if i.updated_at), default=None)
             if latest:

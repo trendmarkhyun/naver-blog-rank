@@ -16,7 +16,14 @@ from src.parser import (
     parse_places_from_dom_links,
     to_search_results,
 )
-from src.place_url import PlaceUrlError, parse_place_url
+from src.place_search import (
+    PlaceCandidate,
+    filter_candidates,
+    parse_place_candidates,
+    pick_auto_candidate,
+    score_candidate,
+)
+from src.place_url import PlaceUrlError, build_place_url, parse_place_url
 from src.storage import Storage
 from src.team_config import load_team_watchlist, stable_item_id
 from src.team_rankings import load_team_rankings, save_team_rankings, snapshot_from_watchlist
@@ -167,6 +174,64 @@ class PlaceUrlTests(unittest.TestCase):
     def test_invalid_url_raises(self) -> None:
         with self.assertRaises(PlaceUrlError):
             parse_place_url("https://www.naver.com")
+
+
+class PlaceSearchTests(unittest.TestCase):
+    def test_build_place_url_for_hospital(self) -> None:
+        url = build_place_url(
+            "1316635415",
+            category="한의원",
+            href="https://pcmap.place.naver.com/hospital/1316635415/home",
+        )
+        self.assertIn("/hospital/1316635415", url)
+
+    def test_filter_candidates_by_partial_name(self) -> None:
+        candidates = [
+            PlaceCandidate("1", "스타벅스 강남역점", "서울 강남구", "카페", "url1"),
+            PlaceCandidate("2", "스타벅스 홍대점", "서울 마포구", "카페", "url2"),
+            PlaceCandidate("3", "이디야커피", "서울 서초구", "카페", "url3"),
+        ]
+        filtered = filter_candidates("스타벅스", candidates)
+        self.assertEqual(len(filtered), 2)
+        self.assertEqual(filtered[0].name, "스타벅스 강남역점")
+
+    def test_pick_auto_candidate_exact_name(self) -> None:
+        candidates = [
+            PlaceCandidate("1", "스타벅스 강남역점", "서울 강남구", "카페", "url1"),
+            PlaceCandidate("2", "스타벅스 홍대점", "서울 마포구", "카페", "url2"),
+        ]
+        picked = pick_auto_candidate("스타벅스 강남역점", candidates)
+        self.assertIsNotNone(picked)
+        assert picked is not None
+        self.assertEqual(picked.place_id, "1")
+
+    def test_pick_auto_candidate_requires_selection_for_many(self) -> None:
+        candidates = [
+            PlaceCandidate("1", "스타벅스 강남역점", "서울 강남구", "카페", "url1"),
+            PlaceCandidate("2", "스타벅스 홍대점", "서울 마포구", "카페", "url2"),
+        ]
+        self.assertIsNone(pick_auto_candidate("스타벅스", candidates))
+
+    def test_parse_place_candidates_payload(self) -> None:
+        payload = {
+            "candidates": [
+                {
+                    "place_id": "123",
+                    "name": "테스트 업체",
+                    "address": "서울 강남구",
+                    "category": "카페",
+                    "href": "/restaurant/123/home",
+                }
+            ]
+        }
+        candidates = parse_place_candidates(payload)
+        self.assertEqual(len(candidates), 1)
+        self.assertEqual(candidates[0].place_id, "123")
+        self.assertIn("/restaurant/123", candidates[0].place_url)
+
+    def test_score_candidate_exact_match(self) -> None:
+        candidate = PlaceCandidate("1", "스타벅스", "주소", "카페", "url")
+        self.assertEqual(score_candidate("스타벅스", candidate), 100)
 
 
 class WatchlistTests(unittest.TestCase):
