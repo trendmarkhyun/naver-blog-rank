@@ -409,7 +409,7 @@ def render_profile_row(member: MemberSession, profile: BlogProfile, index: int) 
 
     st.markdown('<div class="blog-row-wrap">', unsafe_allow_html=True)
 
-    cols = st.columns([0.35, 2.5, 1.5, 0.9, 1.3, 0.07, 0.07])
+    cols = st.columns([0.35, 2.4, 1.5, 0.85, 1.15, 0.22])
     with cols[0]:
         st.markdown(
             f'<div class="bnum"><div class="bnum-circle">{index}</div></div>',
@@ -430,20 +430,19 @@ def render_profile_row(member: MemberSession, profile: BlogProfile, index: int) 
     with cols[4]:
         st.markdown(f'<div class="bpills">{pills_html}</div>', unsafe_allow_html=True)
     with cols[5]:
-        st.markdown('<div class="blog-action-btn">', unsafe_allow_html=True)
-        if st.button("✕", key=f"del_blog_{profile.id}", help="삭제"):
-            store.delete_profile(member.id, profile.id)
-            _get_expanded().discard(profile.id)
-            reload_profiles(member.id)
-            st.rerun()
-        st.markdown("</div>", unsafe_allow_html=True)
-    with cols[6]:
-        st.markdown('<div class="blog-chev-btn">', unsafe_allow_html=True)
-        expanded = profile.id in _get_expanded()
-        if st.button("▼" if not expanded else "▲", key=f"expand_{profile.id}", help="펼치기"):
-            _toggle_expanded(profile.id)
-            st.rerun()
-        st.markdown("</div>", unsafe_allow_html=True)
+        btn_del, btn_exp = st.columns(2, gap="small")
+        with btn_del:
+            if st.button("✕", key=f"del_blog_{profile.id}", help="삭제", use_container_width=True):
+                store.delete_profile(member.id, profile.id)
+                _get_expanded().discard(profile.id)
+                reload_profiles(member.id)
+                st.rerun()
+        with btn_exp:
+            expanded = profile.id in _get_expanded()
+            chev = "▲" if expanded else "▼"
+            if st.button(chev, key=f"expand_{profile.id}", help="펼치기", use_container_width=True):
+                _toggle_expanded(profile.id)
+                st.rerun()
 
     if profile.id in _get_expanded():
         render_profile_detail(member, profile, settings)
