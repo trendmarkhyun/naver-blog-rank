@@ -119,6 +119,34 @@ class BlogModelTests(unittest.TestCase):
         self.assertEqual(format_stat(None), "-")
         self.assertEqual(format_stat(4821), "4,821")
 
+    def test_decode_post_title(self) -> None:
+        from src.blog_posts import decode_post_title, is_generic_title, posts_from_api_payload
+
+        title = decode_post_title(
+            "%EC%97%98%EC%A7%80+%EC%95%8C%EB%9C%B0%ED%8F%B0+%EB%A1%9C%EB%B0%8D%EC%9C%BC%EB%A1%9C"
+        )
+        self.assertIn("알뜰폰", title)
+        self.assertTrue(is_generic_title("동영상..."))
+        self.assertFalse(is_generic_title("광주 알뜰폰 LG 편의점 유심칩으로 10분 만에 개통!"))
+
+        posts = posts_from_api_payload(
+            "58qjijwjwf",
+            {
+                "resultCode": "S",
+                "postList": [
+                    {
+                        "logNo": "224297630157",
+                        "title": "%EA%B4%91%EC%A3%BC+%EC%95%8C%EB%9C%B0%ED%8F%B0",
+                        "addDate": "2026. 5. 27.",
+                    }
+                ],
+            },
+        )
+        self.assertEqual(len(posts), 1)
+        self.assertEqual(posts[0].post_id, "224297630157")
+        self.assertIn("광주", posts[0].title)
+        self.assertEqual(posts[0].published_at, "2026. 5. 27.")
+
 
 class BlogSearchMatchTests(unittest.TestCase):
     def test_find_post_rank(self) -> None:
