@@ -10,14 +10,18 @@ import streamlit as st
 COOKIE_NAME_KEY = "siwol_login_name"
 COOKIE_CODE_KEY = "siwol_login_code"
 COOKIE_MANAGER_KEY = "siwol_cookie_manager"
+COOKIE_MANAGER_STATE_KEY = "siwol_cookie_manager_instance"
 COOKIE_READY_KEY = "siwol_cookies_ready"
 LOGIN_MANUAL_MODE_KEY = "login_manual_mode"
 COOKIE_MAX_AGE_DAYS = 365
 
 
-@st.cache_resource
 def get_cookie_manager() -> stx.CookieManager:
-    return stx.CookieManager(key=COOKIE_MANAGER_KEY)
+    if COOKIE_MANAGER_STATE_KEY not in st.session_state:
+        st.session_state[COOKIE_MANAGER_STATE_KEY] = stx.CookieManager(
+            key=COOKIE_MANAGER_KEY
+        )
+    return st.session_state[COOKIE_MANAGER_STATE_KEY]
 
 
 def ensure_cookies_ready() -> None:
