@@ -242,6 +242,48 @@ class PlaceSearchTests(unittest.TestCase):
         self.assertEqual(score_candidate("스타벅스", candidate), 100)
 
 
+class LookupCacheTests(unittest.TestCase):
+    def test_cache_returns_result_within_ttl(self) -> None:
+        from src.lookup import RankLookupResult
+        from src.lookup_cache import get_cached_lookup, set_cached_lookup
+
+        result = RankLookupResult(
+            keyword="강남역 맛집",
+            place_id="123",
+            place_name="테스트",
+            rank=3,
+            found=True,
+            result_count=20,
+            max_rank=50,
+            collected_at="2026-05-28T10:00:00+09:00",
+        )
+        set_cached_lookup("강남역 맛집", "https://map.naver.com/p/entry/place/123", 50, result)
+        cached = get_cached_lookup("강남역 맛집", "https://map.naver.com/p/entry/place/123", 50)
+        self.assertIsNotNone(cached)
+        assert cached is not None
+        self.assertEqual(cached.rank, 3)
+
+    def test_cache_skips_error_results(self) -> None:
+        from src.lookup import RankLookupResult
+        from src.lookup_cache import get_cached_lookup, set_cached_lookup
+
+        result = RankLookupResult(
+            keyword="강남역 맛집",
+            place_id="123",
+            place_name=None,
+            rank=None,
+            found=False,
+            result_count=0,
+            max_rank=50,
+            collected_at="2026-05-28T10:00:00+09:00",
+            error="조회 실패",
+        )
+        set_cached_lookup("강남역 맛집", "https://map.naver.com/p/entry/place/123", 50, result)
+        self.assertIsNone(
+            get_cached_lookup("강남역 맛집", "https://map.naver.com/p/entry/place/123", 50)
+        )
+
+
 class WatchlistTests(unittest.TestCase):
     def test_add_remove_and_persist(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

@@ -26,6 +26,11 @@ from src.parser import (
 logger = logging.getLogger(__name__)
 
 RESPONSE_HINTS = ("search", "place", "hospital", "allSearch", "list", "graphql")
+NAVIGATION_TIMEOUT_MS = 45_000
+IFRAME_ATTACH_TIMEOUT_MS = 10_000
+MAP_FALLBACK_WAIT_MS = 2_000
+APOLLO_POLL_MS = 250
+APOLLO_MAX_ATTEMPTS = 7
 
 
 async def search_keyword_results(
@@ -64,7 +69,7 @@ async def search_keyword_results(
     all_places: list[tuple[str, str]] = []
     for category in categories:
         list_url = list_url_for_category(keyword, display, category)
-        await page.goto(list_url, wait_until="domcontentloaded", timeout=60000)
+        await page.goto(list_url, wait_until="domcontentloaded", timeout=NAVIGATION_TIMEOUT_MS)
         apollo_places = await _collect_places_from_apollo(page, min_count=min(5, max_rank))
         dom_places = await _collect_places_from_dom(page, max_rank)
         all_places = merge_place_tuples(all_places, apollo_places)
@@ -75,8 +80,8 @@ async def search_keyword_results(
 
     if not all_places:
         map_url = MAP_SEARCH_URL.format(keyword=quote(keyword))
-        await page.goto(map_url, wait_until="domcontentloaded", timeout=60000)
-        await page.wait_for_timeout(3500)
+        await page.goto(map_url, wait_until="domcontentloaded", timeout=NAVIGATION_TIMEOUT_MS)
+        await page.wait_for_timeout(MAP_FALLBACK_WAIT_MS)
         iframe_places = await _collect_places_from_search_iframe(page)
         all_places = merge_place_tuples(all_places, iframe_places)
 
@@ -92,7 +97,7 @@ async def search_keyword_results(
 async def _collect_places_from_apollo(page: Page, *, min_count: int = 1) -> list[tuple[str, str]]:
     best_places: list[tuple[str, str]] = []
 
-    for attempt in range(10):
+    for attempt in range(APOLLO_MAX_ATTEMPTS):
         for frame in page.frames:
             try:
                 payload = await frame.evaluate(APOLLO_EXTRACT_SCRIPT)
@@ -109,7 +114,7 @@ async def _collect_places_from_apollo(page: Page, *, min_count: int = 1) -> list
         if len(best_places) >= min_count:
             break
 
-        await page.wait_for_timeout(500)
+        await page.wait_for_timeout(APOLLO_POLL_MS)
 
     if best_places:
         logger.debug("Parsed %s places from Apollo state", len(best_places))
@@ -119,7 +124,7 @@ async def _collect_places_from_apollo(page: Page, *, min_count: int = 1) -> list
 async def _collect_places_from_search_iframe(page: Page) -> list[tuple[str, str]]:
     iframe_element = page.locator(IFRAME_SEARCH)
     try:
-        await iframe_element.wait_for(state="attached", timeout=15000)
+        await iframe_element.wait_for(state="attached", timeout=IFRAME_ATTACH_TIMEOUT_MS)
     except Exception:
         return []
 

@@ -10,6 +10,7 @@ from playwright.async_api import Browser, BrowserContext, Page, async_playwright
 from src.config_loader import Business
 from src.matcher import SearchResultItem, find_business_rank
 from src.place_url import PlaceUrlError, parse_place_url
+from src.lookup_cache import get_cached_lookup, set_cached_lookup
 from src.search import search_keyword_results
 from src.settings import load_settings
 from src.storage import Storage
@@ -63,6 +64,10 @@ def _place_name_from_results(
     return None
 
 
+PLACE_NAME_TIMEOUT_MS = 20_000
+PLACE_NAME_WAIT_MS = 300
+
+
 async def _fetch_place_name(page: Page, place_id: str) -> str | None:
     urls = (
         f"https://pcmap.place.naver.com/restaurant/{place_id}/home",
@@ -72,8 +77,8 @@ async def _fetch_place_name(page: Page, place_id: str) -> str | None:
 
     for url in urls:
         try:
-            await page.goto(url, wait_until="domcontentloaded", timeout=30000)
-            await page.wait_for_timeout(1000)
+            await page.goto(url, wait_until="domcontentloaded", timeout=PLACE_NAME_TIMEOUT_MS)
+            await page.wait_for_timeout(PLACE_NAME_WAIT_MS)
             name = await page.evaluate(
                 """
                 (placeId) => {
@@ -144,6 +149,10 @@ async def lookup_rank(
 
     business = Business(id="lookup", name="", place_id=place_id)
 
+    cached = get_cached_lookup(keyword, place_url, effective_max_rank)
+    if cached is not None:
+        return cached
+
     try:
         async with async_playwright() as playwright:
             browser, _, page = await _create_browser_context(playwright)
@@ -158,7 +167,7 @@ async def lookup_rank(
             finally:
                 await browser.close()
 
-        return RankLookupResult(
+        result = RankLookupResult(
             keyword=keyword,
             place_id=place_id,
             place_name=place_name,
@@ -168,6 +177,8 @@ async def lookup_rank(
             max_rank=effective_max_rank,
             collected_at=collected_at,
         )
+        set_cached_lookup(keyword, place_url, effective_max_rank, result)
+        return result
     except Exception as exc:
         return RankLookupResult(
             keyword=keyword,

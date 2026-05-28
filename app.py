@@ -16,6 +16,7 @@ load_dotenv(PROJECT_ROOT / ".env")
 
 from src.auth import AuthError, MemberSession, login
 from src.lookup import RankLookupResult, lookup_rank, refresh_watchlist
+from src.lookup_cache import get_cached_lookup
 from src.place_search import PlaceCandidate, pick_auto_candidate, search_places_by_name
 from src.place_url import PlaceUrlError, parse_place_url
 from src.playwright_bootstrap import ensure_playwright_browser
@@ -174,9 +175,14 @@ def ensure_items(member_id: str) -> list[WatchlistItem]:
 
 def run_lookup(keyword: str, place_url: str, max_rank: int) -> RankLookupResult:
     ensure_playwright_browser()
-    return asyncio.run(
-        lookup_rank(keyword.strip(), place_url.strip(), max_rank=max_rank)
-    )
+    cached = get_cached_lookup(keyword.strip(), place_url.strip(), max_rank)
+    if cached is not None:
+        return cached
+
+    with st.spinner("네이버 지도에서 순위를 조회하는 중..."):
+        return asyncio.run(
+            lookup_rank(keyword.strip(), place_url.strip(), max_rank=max_rank)
+        )
 
 
 def run_place_search(business_name: str) -> list[PlaceCandidate]:
@@ -216,8 +222,7 @@ def register_candidate(
     keyword: str,
     max_rank: int,
 ) -> None:
-    with st.spinner("순위 조회 및 등록 중..."):
-        result = run_lookup(keyword, candidate.place_url, max_rank)
+    result = run_lookup(keyword, candidate.place_url, max_rank)
 
     if result.error and not result.place_id:
         st.error(result.error)
@@ -244,8 +249,7 @@ def register_candidate(
 
 
 def lookup_candidate(candidate: PlaceCandidate, keyword: str, max_rank: int) -> None:
-    with st.spinner("네이버 지도 검색 중..."):
-        result = run_lookup(keyword, candidate.place_url, max_rank)
+    result = run_lookup(keyword, candidate.place_url, max_rank)
     st.markdown("**조회 결과**")
     render_lookup_result(result)
 
@@ -261,8 +265,7 @@ def resolve_with_url(
     lookup: bool,
 ) -> None:
     parse_place_url(place_url.strip())
-    with st.spinner("네이버 지도 검색 중..."):
-        result = run_lookup(keyword, place_url, max_rank)
+    result = run_lookup(keyword, place_url, max_rank)
 
     if lookup:
         st.markdown("**조회 결과**")
