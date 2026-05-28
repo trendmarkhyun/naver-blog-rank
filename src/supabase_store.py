@@ -206,6 +206,10 @@ class SupabaseStore:
         item.updated_at = updated_at
         self.update_item(item)
 
+    def refresh_member_items(self, items: list[WatchlistItem]) -> None:
+        for item in items:
+            self.update_item(item)
+
     def find_item(self, member_id: str, place_id: str, keyword: str) -> WatchlistItem | None:
         response = (
             self.client.table("watchlist_items")

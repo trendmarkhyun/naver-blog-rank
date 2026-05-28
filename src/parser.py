@@ -72,6 +72,7 @@ MORE_BUTTON_SELECTORS = [
 
 PLACE_ID_PATTERNS = [
     re.compile(r"/place/(?:entry/)?(\d+)"),
+    re.compile(r"/search/[^/]+/place/(\d+)"),
     re.compile(r"placeId[=:](\d+)"),
     re.compile(r'"id"\s*:\s*"(\d+)"'),
 ]

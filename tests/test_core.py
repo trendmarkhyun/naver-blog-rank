@@ -115,6 +115,13 @@ class PlaceUrlTests(unittest.TestCase):
         )
         self.assertEqual(place_id, "1476560900")
 
+    def test_parse_map_search_place_url(self) -> None:
+        place_id = parse_place_url(
+            "https://map.naver.com/p/search/%EC%B2%9C%EC%95%88%20%EC%A0%9C%EC%8A%A4%ED%8A%B8"
+            "/place/1693055805?entry=pll&searchText=test"
+        )
+        self.assertEqual(place_id, "1693055805")
+
     def test_invalid_url_raises(self) -> None:
         with self.assertRaises(PlaceUrlError):
             parse_place_url("https://www.naver.com")

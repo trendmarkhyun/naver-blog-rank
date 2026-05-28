@@ -5,7 +5,15 @@ from __future__ import annotations
 from src.watchlist import WatchlistItem
 
 
-def format_rank(rank: int | None, found: bool, max_rank: int) -> str:
+def format_rank(
+    rank: int | None,
+    found: bool,
+    max_rank: int,
+    *,
+    pending: bool = False,
+) -> str:
+    if pending:
+        return "조회 전"
     if found and rank is not None:
         return f"{rank}위"
     return f"{max_rank}위 밖"
