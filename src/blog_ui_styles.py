@@ -70,29 +70,43 @@ div[data-testid="column"] .stButton > button[kind="primary"]{
 div[data-testid="column"] .stDownloadButton > button{
   height:34px;font-size:12px;border-radius:8px;
 }
-/* ── 행 액션 버튼 (X, ▼) ── */
-.blog-row-wrap div[data-testid="column"]:last-child{
-  min-width:76px;padding-left:4px;
+/* ── 행 액션 버튼 (X, ▼) — 세그먼트 아이콘 그룹 ── */
+div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:nth-child(6){
+  display:flex !important;align-items:center !important;justify-content:flex-end !important;
+  min-width:84px;padding-right:2px;
 }
-.blog-row-wrap div[data-testid="column"]:last-child [data-testid="stHorizontalBlock"]{
-  gap:12px !important;justify-content:flex-end;align-items:center;flex-wrap:nowrap;
+div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:nth-child(6) [data-testid="stHorizontalBlock"]{
+  display:inline-flex !important;width:fit-content !important;max-width:100%;
+  align-items:center !important;justify-content:center !important;flex-wrap:nowrap !important;
+  gap:6px !important;height:auto !important;min-height:0 !important;
+  padding:3px;border:1px solid #e5e7eb;border-radius:10px;background:#f8f9fa;
+  box-shadow:0 1px 2px rgba(15,23,42,.04);
 }
-.blog-row-wrap div[data-testid="column"]:last-child [data-testid="column"]{
-  flex:0 0 32px !important;min-width:32px !important;max-width:36px !important;width:32px !important;
+div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:nth-child(6) [data-testid="column"]{
+  flex:0 0 34px !important;width:34px !important;min-width:34px !important;max-width:34px !important;
+  height:auto !important;align-self:center !important;
 }
-.blog-row-wrap div[data-testid="column"]:last-child .stButton{
-  width:32px;min-width:32px;
+div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:nth-child(6) .stButton{
+  width:34px !important;min-width:34px !important;height:auto !important;margin:0 !important;
 }
-.blog-row-wrap div[data-testid="column"]:last-child .stButton > button{
-  min-height:28px;height:28px;min-width:28px;max-width:32px;width:32px !important;
-  padding:0;font-size:13px;border:0.5px solid #e0e0e0;border-radius:6px;
-  background:#fff;color:#666;box-shadow:none;margin:0;
+div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:nth-child(6) .stButton > button{
+  display:inline-flex !important;align-items:center !important;justify-content:center !important;
+  width:34px !important;min-width:34px !important;max-width:34px !important;
+  height:30px !important;min-height:30px !important;max-height:30px !important;
+  padding:0 !important;margin:0 !important;line-height:1 !important;
+  font-size:12px !important;font-weight:500 !important;
+  border:1px solid transparent !important;border-radius:7px !important;
+  background:#fff !important;color:#64748b !important;
+  box-shadow:none !important;transition:background .15s ease,color .15s ease,border-color .15s ease;
 }
-.blog-row-wrap div[data-testid="column"]:last-child .stButton > button:hover{
-  background:#f0f0f0;color:#444;border-color:#ccc;
+div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:nth-child(6) .stButton > button:hover{
+  background:#f1f5f9 !important;color:#334155 !important;border-color:#e2e8f0 !important;
 }
-.blog-row-wrap div[data-testid="column"]:last-child .stButton:first-child > button:hover{
-  color:#dc3545;border-color:#f5c6cb;background:#fff5f5;
+div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:nth-child(6) .stButton:first-child > button:hover{
+  color:#dc2626 !important;background:#fef2f2 !important;border-color:#fecaca !important;
+}
+div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:nth-child(6) .stButton:last-child > button:hover{
+  color:#03C75A !important;background:#ecfdf3 !important;border-color:#bbf7d0 !important;
 }
 /* 세그먼트 라디오 (통합검색/블로그탭) */
 div.blog-seg-radio div[role="radiogroup"]{
