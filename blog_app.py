@@ -27,6 +27,7 @@ from src.blog_lookup import (
 )
 from src.blog_models import (
     MAX_BLOGS,
+    MAX_KEYWORDS,
     MAX_POSTS,
     SEARCH_MODE_BLOG_TAB,
     SEARCH_MODE_UNIFIED,
@@ -128,6 +129,36 @@ def _save_keyword_slot(state_key: str, post_id: str, slot: int) -> None:
     """on_change: 해당 슬롯만 DB upsert (전체 리렌더 없음)."""
     value = st.session_state.get(state_key, "")
     _store().upsert_keyword(post_id, slot, value)
+
+
+def _flush_profile_keywords(profile: BlogProfile) -> None:
+    """순위 체크 전 세션에만 있는 키워드 입력값을 DB에 반영."""
+    store = _store()
+    for post in profile.posts:
+        for slot in range(1, MAX_KEYWORDS + 1):
+            kw_key = f"kw_{profile.id}_{post.id}_{slot}"
+            if kw_key not in st.session_state:
+                continue
+            value = str(st.session_state.get(kw_key, "")).strip()
+            store.upsert_keyword(post.id, slot, value)
+
+
+def _reload_profile_for_rank_check(member_id: str, profile_id: str) -> BlogProfile | None:
+    _flush_profile_keywords_by_id(member_id, profile_id)
+    return _store().load_profile_with_posts(member_id, profile_id)
+
+
+def _flush_profile_keywords_by_id(member_id: str, profile_id: str) -> None:
+    profile = _store().load_profile_with_posts(member_id, profile_id)
+    if profile:
+        _flush_profile_keywords(profile)
+
+
+def _flush_all_profile_keywords(member_id: str, profiles: list[BlogProfile]) -> None:
+    for profile in profiles:
+        full = _store().load_profile_with_posts(member_id, profile.id)
+        if full:
+            _flush_profile_keywords(full)
 
 
 def run_fetch_posts(blog_id: str) -> FetchPostsResult:
@@ -416,6 +447,9 @@ def render_profile_control_bar(
                 use_container_width=True,
             ):
                 with st.spinner("순위 체크 중..."):
+                    fresh = _reload_profile_for_rank_check(member.id, profile.id)
+                    if fresh:
+                        profile = fresh
                     results = run_refresh_profile(profile, global_mode, settings.blog_max_rank)
                     _apply_and_persist_ranks(member.id, profile.id, results)
                 st.rerun()
@@ -589,6 +623,7 @@ def render_global_bar(member: MemberSession, profiles: list[BlogProfile]) -> Non
             if not profiles:
                 st.info("등록된 블로그가 없습니다.")
             else:
+                _flush_all_profile_keywords(member.id, profiles)
                 results = run_refresh_all_with_progress(
                     member.id,
                     profiles,

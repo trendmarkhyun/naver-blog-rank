@@ -13,6 +13,7 @@ from urllib.parse import unquote_plus
 
 from playwright.async_api import Page, async_playwright
 
+from src.blog_dates import sort_posts_newest_first
 from src.blog_models import MAX_POSTS
 from src.blog_url import build_blog_post_url
 from src.settings import load_settings
@@ -218,7 +219,7 @@ def fetch_posts_via_http(blog_id: str) -> list[FetchedBlogPost]:
             break
         page_num += 1
 
-    return posts[:MAX_POSTS]
+    return sort_posts_newest_first(posts)[:MAX_POSTS]
 
 
 def _parse_int(text: str | None) -> int | None:
@@ -311,7 +312,7 @@ async def _fetch_posts_via_api(page: Page, blog_id: str) -> list[FetchedBlogPost
             break
         page_num += 1
 
-    return posts[:MAX_POSTS]
+    return sort_posts_newest_first(posts)[:MAX_POSTS]
 
 
 async def _extract_posts_from_dom(page: Page, blog_id: str) -> list[FetchedBlogPost]:
@@ -360,7 +361,7 @@ async def _extract_posts_from_dom(page: Page, blog_id: str) -> list[FetchedBlogP
     deduped: dict[str, FetchedBlogPost] = {}
     for post in posts:
         deduped[post.post_id] = post
-    return list(deduped.values())[:MAX_POSTS]
+    return sort_posts_newest_first(list(deduped.values()))[:MAX_POSTS]
 
 
 def _blog_id_from_page(url: str) -> str:

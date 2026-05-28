@@ -16,6 +16,7 @@ from src.blog_models import (
     BlogProfile,
     BlogStoreError,
 )
+from src.blog_dates import sort_posts_newest_first
 from src.blog_url import BlogUrlError, build_blog_home_url, parse_blog_url
 from src.storage import Storage
 from src.supabase_store import SupabaseStoreError, get_client
@@ -145,10 +146,9 @@ class BlogStore:
             self.client.table("blog_posts")
             .select("*")
             .eq("blog_profile_id", profile_id)
-            .order("published_at", desc=True)
             .execute()
         )
-        posts = [_row_to_post(row) for row in (response.data or [])]
+        posts = sort_posts_newest_first([_row_to_post(row) for row in (response.data or [])])
         if not posts:
             return posts
 

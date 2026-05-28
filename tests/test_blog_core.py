@@ -165,6 +165,54 @@ class BlogModelTests(unittest.TestCase):
         self.assertFalse(posts_need_refresh([type("P", (), {"title": "실제 제목"})()]))
 
 
+class BlogDateTests(unittest.TestCase):
+    def test_parse_relative_and_absolute_dates(self) -> None:
+        from datetime import datetime
+        from zoneinfo import ZoneInfo
+
+        from src.blog_dates import parse_published_at, sort_posts_newest_first
+
+        now = datetime(2026, 5, 28, 15, 0, 0, tzinfo=ZoneInfo("Asia/Seoul"))
+        recent = parse_published_at("9시간 전", now=now)
+        absolute = parse_published_at("2026. 5. 27.", now=now)
+        older = parse_published_at("2026. 5. 8.", now=now)
+
+        self.assertIsNotNone(recent)
+        self.assertIsNotNone(absolute)
+        self.assertIsNotNone(older)
+        self.assertGreater(recent, absolute)
+        self.assertGreater(absolute, older)
+
+        class _Post:
+            def __init__(self, published_at: str, post_id: str) -> None:
+                self.published_at = published_at
+                self.post_id = post_id
+
+        ordered = sort_posts_newest_first(
+            [
+                _Post("2026. 5. 8.", "100"),
+                _Post("9시간 전", "99"),
+                _Post("2026. 5. 27.", "101"),
+            ]
+        )
+        self.assertEqual([post.published_at for post in ordered], ["9시간 전", "2026. 5. 27.", "2026. 5. 8."])
+
+
+class BlogSearchFilterTests(unittest.TestCase):
+    def test_ad_filter_ignores_loading_substrings(self) -> None:
+        from src.blog_search import BlogSearchResultItem, _is_ad_item
+
+        item = BlogSearchResultItem(
+            rank=1,
+            url="https://blog.naver.com/example/1234567890",
+            title="엘지 알뜰폰 로밍",
+            blog_id="example",
+            post_id="1234567890",
+            is_ad=False,
+        )
+        self.assertFalse(_is_ad_item(item))
+
+
 class BlogSearchMatchTests(unittest.TestCase):
     def test_find_post_rank(self) -> None:
         from src.blog_search import BlogSearchResultItem, find_post_rank

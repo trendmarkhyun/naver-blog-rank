@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import random
+import re
 from dataclasses import dataclass
 from urllib.parse import quote_plus
 
@@ -16,14 +17,20 @@ from src.settings import load_settings
 
 logger = logging.getLogger(__name__)
 
-AD_MARKERS = (
-    "ad",
+AD_CLASS_PATTERNS = (
+    re.compile(r"\bad_area\b"),
+    re.compile(r"\b_ad_\b"),
+    re.compile(r"\b-ad-\b"),
+    re.compile(r"powerblog"),
+    re.compile(r"sp_nreview"),
+    re.compile(r"ad_section"),
+)
+
+AD_TEXT_MARKERS = (
     "powerblog",
     "파워블로그",
     "광고",
     "sponsored",
-    "sp_nreview",
-    "ad_section",
 )
 
 
@@ -39,7 +46,8 @@ class BlogSearchResultItem:
 
 EXTRACT_BLOG_RESULTS_SCRIPT = """
 (mode) => {
-  const adMarkers = ['ad', 'powerblog', '파워블로그', '광고', 'sponsored', 'sp_nreview'];
+  const textAdMarkers = ['powerblog', '파워블로그', '광고', 'sponsored'];
+  const classAdPatterns = [/\\bad_area\\b/, /\\b_ad_\\b/, /\\b-ad-\\b/, /powerblog/, /sp_nreview/, /ad_section/];
   const rows = [];
   const seen = new Set();
 
@@ -47,8 +55,8 @@ EXTRACT_BLOG_RESULTS_SCRIPT = """
     if (!node) return false;
     const text = (node.textContent || '').toLowerCase();
     const cls = (node.className || '').toLowerCase();
-    const html = (node.innerHTML || '').toLowerCase();
-    return adMarkers.some((m) => text.includes(m) || cls.includes(m) || html.includes(m));
+    if (textAdMarkers.some((marker) => text.includes(marker))) return true;
+    return classAdPatterns.some((pattern) => pattern.test(cls));
   };
 
   const extractIds = (href) => {
@@ -68,30 +76,58 @@ EXTRACT_BLOG_RESULTS_SCRIPT = """
     return { blogId, postId };
   };
 
-  const selectors = mode === 'blog_tab'
-    ? ['.view_wrap', '.detail_box', '.total_wrap .bx', '.lst_total li', '.api_subject_bx']
-    : ['.api_subject_bx', '.sp_blog .api_subject_bx', '.view_wrap', '.total_wrap .bx'];
-
-  for (const selector of selectors) {
-    document.querySelectorAll(selector).forEach((node) => {
-      const link = node.querySelector('a[href*="blog.naver.com"], a[href*="blogId="]');
-      if (!link) return;
-      const href = link.href || link.getAttribute('href') || '';
-      if (!href.includes('blog.naver.com') && !href.includes('blogId=')) return;
-      const ids = extractIds(href);
-      if (!ids.blogId) return;
-      const key = `${ids.blogId}:${ids.postId || href}`;
-      if (seen.has(key)) return;
-      seen.add(key);
-      rows.push({
-        url: href,
-        title: (link.textContent || '').trim(),
-        blogId: ids.blogId,
-        postId: ids.postId || '',
-        isAd: isAdNode(node),
-      });
+  const addRow = (node, link) => {
+    const href = link.href || link.getAttribute('href') || '';
+    if (!href.includes('blog.naver.com') && !href.includes('blogId=')) return;
+    const ids = extractIds(href);
+    if (!ids.blogId || !ids.postId) return;
+    const key = `${ids.blogId}:${ids.postId}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    rows.push({
+      url: href,
+      title: (link.textContent || '').trim(),
+      blogId: ids.blogId,
+      postId: ids.postId,
+      isAd: isAdNode(node),
     });
-    if (rows.length) break;
+  };
+
+  const collectFromRoot = (root, selectors) => {
+    if (!root) return;
+    for (const selector of selectors) {
+      root.querySelectorAll(selector).forEach((node) => {
+        const link = node.querySelector('a[href*="blog.naver.com"], a[href*="blogId="]');
+        if (link) addRow(node, link);
+      });
+    }
+  };
+
+  const blogTabSelectors = [
+    '.view_wrap',
+    '.detail_box',
+    '.total_wrap .bx',
+    '.lst_total li',
+    '.api_subject_bx',
+  ];
+  const unifiedSelectors = [
+    '.api_subject_bx',
+    '.view_wrap',
+    '.detail_box',
+    '.total_wrap .bx',
+    'li',
+  ];
+
+  if (mode === 'blog_tab') {
+    collectFromRoot(document, blogTabSelectors);
+  } else {
+    const blogSection = document.querySelector('.sp_blog');
+    if (blogSection) {
+      collectFromRoot(blogSection, unifiedSelectors);
+    }
+    if (!rows.length) {
+      collectFromRoot(document, ['.sp_blog .api_subject_bx', '.sp_blog .view_wrap']);
+    }
   }
 
   if (!rows.length) {
@@ -126,14 +162,35 @@ def _build_search_url(keyword: str, mode: str) -> str:
 
 
 def _is_ad_item(item: BlogSearchResultItem) -> bool:
+    if item.is_ad:
+        return True
+
     combined = f"{item.title} {item.url}".lower()
-    return item.is_ad or any(marker in combined for marker in AD_MARKERS)
+    if any(marker in combined for marker in AD_TEXT_MARKERS):
+        return True
+
+    return any(pattern.search(combined) for pattern in AD_CLASS_PATTERNS)
 
 
 async def _delay_between_requests() -> None:
     settings = load_settings()
     delay = random.uniform(settings.delay_min, settings.delay_max)
     await asyncio.sleep(delay)
+
+
+async def _prepare_search_page(page: Page, mode: str) -> None:
+    if mode == SEARCH_MODE_UNIFIED:
+        try:
+            await page.wait_for_selector(".sp_blog", timeout=8_000)
+        except Exception:
+            pass
+
+    for _ in range(4):
+        await page.evaluate("window.scrollBy(0, Math.max(window.innerHeight, 900))")
+        await asyncio.sleep(0.35)
+
+    await page.evaluate("window.scrollTo(0, 0)")
+    await asyncio.sleep(0.25)
 
 
 async def search_blog_results(
@@ -150,6 +207,7 @@ async def search_blog_results(
     url = _build_search_url(keyword, mode)
     await page.goto(url, wait_until="domcontentloaded", timeout=30_000)
     await asyncio.sleep(1.2)
+    await _prepare_search_page(page, mode)
 
     raw_rows = await page.evaluate(EXTRACT_BLOG_RESULTS_SCRIPT, mode)
     results: list[BlogSearchResultItem] = []
