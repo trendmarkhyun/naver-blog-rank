@@ -83,6 +83,14 @@ def load_items(member_id: str) -> list[WatchlistItem]:
     return _store().list_items(member_id)
 
 
+def ensure_items(member_id: str) -> list[WatchlistItem]:
+    cached = st.session_state.get("items")
+    if cached is None:
+        cached = load_items(member_id)
+        st.session_state.items = cached
+    return cached
+
+
 def render_item(item: WatchlistItem, member: MemberSession) -> None:
     row_class = "watch-row changed" if item.changed else "watch-row"
     change_text = format_change(item)
@@ -113,7 +121,11 @@ def render_item(item: WatchlistItem, member: MemberSession) -> None:
 @st.fragment(run_every=timedelta(minutes=5))
 def auto_reload_items() -> None:
     member: MemberSession = st.session_state.member
-    st.session_state.items = load_items(member.id)
+    try:
+        st.session_state.items = load_items(member.id)
+    except SupabaseStoreError:
+        if st.session_state.get("items") is None:
+            st.session_state.items = []
 
 
 def on_max_rank_change() -> None:
@@ -125,10 +137,7 @@ def on_max_rank_change() -> None:
 
 
 def render_dashboard(member: MemberSession) -> None:
-    if "items" not in st.session_state:
-        st.session_state.items = load_items(member.id)
-
-    items: list[WatchlistItem] = st.session_state.items
+    items: list[WatchlistItem] = ensure_items(member.id)
     left, right = st.columns([2, 3])
 
     with left:
