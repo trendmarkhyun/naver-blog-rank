@@ -9,3 +9,7 @@ venv/
 data/watchlist.json
 !.gitkeep
 .streamlit/credentials.toml
+.streamlit/secrets.toml
+tunnel.log
+접속주소.txt
+bin/cloudflared.exe

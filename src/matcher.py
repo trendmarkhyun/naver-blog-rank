@@ -37,6 +37,9 @@ def find_business_rank(
             return MatchResult(found=True, rank=item.rank, matched_by="place_id")
 
     target_name = normalize_name(business.name)
+    if not target_name:
+        return MatchResult(found=False, rank=None, matched_by=None)
+
     for item in results:
         if normalize_name(item.name) == target_name:
             return MatchResult(found=True, rank=item.rank, matched_by="name")

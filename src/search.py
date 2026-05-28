@@ -12,8 +12,8 @@ from src.parser import (
     APOLLO_EXTRACT_SCRIPT,
     IFRAME_SEARCH,
     MAP_SEARCH_URL,
-    PLACE_LIST_URL,
     PLACE_LINK_SELECTORS,
+    list_url_for_keyword,
     merge_place_tuples,
     parse_places_from_apollo_payload,
     parse_places_from_dom_links,
@@ -50,14 +50,10 @@ async def search_keyword_results(
 
     page.on("response", on_response)
 
-    list_url = PLACE_LIST_URL.format(
-        keyword=quote(keyword),
-        display=max(max_rank, 20),
-    )
+    list_url = list_url_for_keyword(keyword, max(max_rank, 20))
     await page.goto(list_url, wait_until="domcontentloaded", timeout=60000)
-    await page.wait_for_timeout(3500)
 
-    apollo_places = await _collect_places_from_apollo(page)
+    apollo_places = await _collect_places_from_apollo(page, min_count=min(5, max_rank))
     dom_places = await _collect_places_from_dom(page, max_rank)
 
     all_places = merge_place_tuples([], apollo_places)
@@ -80,22 +76,31 @@ async def search_keyword_results(
     return results
 
 
-async def _collect_places_from_apollo(page: Page) -> list[tuple[str, str]]:
-    for frame in page.frames:
-        try:
-            payload = await frame.evaluate(APOLLO_EXTRACT_SCRIPT)
-        except Exception:
-            continue
+async def _collect_places_from_apollo(page: Page, *, min_count: int = 1) -> list[tuple[str, str]]:
+    best_places: list[tuple[str, str]] = []
 
-        if not isinstance(payload, dict):
-            continue
+    for attempt in range(10):
+        for frame in page.frames:
+            try:
+                payload = await frame.evaluate(APOLLO_EXTRACT_SCRIPT)
+            except Exception:
+                continue
 
-        places, _ = parse_places_from_apollo_payload(payload)
-        if places:
-            logger.debug("Parsed %s places from Apollo state", len(places))
-            return places
+            if not isinstance(payload, dict):
+                continue
 
-    return []
+            places, _ = parse_places_from_apollo_payload(payload)
+            if len(places) > len(best_places):
+                best_places = places
+
+        if len(best_places) >= min_count:
+            break
+
+        await page.wait_for_timeout(500)
+
+    if best_places:
+        logger.debug("Parsed %s places from Apollo state", len(best_places))
+    return best_places
 
 
 async def _collect_places_from_search_iframe(page: Page) -> list[tuple[str, str]]:
@@ -105,6 +110,7 @@ async def _collect_places_from_search_iframe(page: Page) -> list[tuple[str, str]
     except Exception:
         return []
 
+    best_places: list[tuple[str, str]] = []
     for frame in page.frames:
         if "pcmap.place.naver.com" not in (frame.url or ""):
             continue
@@ -113,10 +119,10 @@ async def _collect_places_from_search_iframe(page: Page) -> list[tuple[str, str]
         except Exception:
             continue
         places, _ = parse_places_from_apollo_payload(payload)
-        if places:
-            return places
+        if len(places) > len(best_places):
+            best_places = places
 
-    return []
+    return best_places
 
 
 async def _collect_places_from_dom(page: Page, max_rank: int) -> list[tuple[str, str]]:

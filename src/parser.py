@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import re
 from typing import Any
+from urllib.parse import quote
 
 from src.matcher import SearchResultItem
 
@@ -12,26 +13,36 @@ APOLLO_EXTRACT_SCRIPT = """
 () => {
   const state = window.__APOLLO_STATE__ || {};
   const root = state.ROOT_QUERY || {};
-  const queryKey = Object.keys(root).find((key) => key.startsWith('placeList'));
-  if (!queryKey) {
+  const queryKeys = Object.keys(root).filter((key) => key.startsWith('placeList'));
+  if (!queryKeys.length) {
     return { error: 'placeList not found', places: [], total: 0 };
   }
 
-  const result = root[queryKey];
-  const items = result?.businesses?.items || [];
-  const places = [];
+  let bestPlaces = [];
+  let bestTotal = 0;
 
-  for (const ref of items) {
-    const item = state[ref.__ref];
-    if (item?.id && item?.name) {
-      places.push({ place_id: String(item.id), name: String(item.name) });
+  for (const queryKey of queryKeys) {
+    const result = root[queryKey];
+    const items = result?.businesses?.items || [];
+    const places = [];
+
+    for (const ref of items) {
+      const item = state[ref.__ref];
+      if (item?.id && item?.name) {
+        places.push({ place_id: String(item.id), name: String(item.name) });
+      }
+    }
+
+    if (places.length > bestPlaces.length) {
+      bestPlaces = places;
+      bestTotal = result?.businesses?.total ?? places.length;
     }
   }
 
   return {
     error: null,
-    total: result?.businesses?.total ?? places.length,
-    places,
+    total: bestTotal,
+    places: bestPlaces,
   };
 }
 """
@@ -40,6 +51,11 @@ PLACE_LIST_URL = (
     "https://pcmap.place.naver.com/place/list"
     "?query={keyword}&display={display}&locale=ko"
 )
+RESTAURANT_LIST_URL = (
+    "https://pcmap.place.naver.com/restaurant/list"
+    "?query={keyword}&display={display}&locale=ko"
+)
+FOOD_KEYWORD_HINTS = ("맛집", "음식", "식당", "카페", "레스토랑", "술집", "밥집", "먹")
 # DOM 셀렉터 (네이버 UI 변경 시 이 파일만 수정)
 IFRAME_SEARCH = "iframe#searchIframe"
 PLACE_LINK_SELECTORS = [
@@ -141,6 +157,13 @@ def parse_places_from_apollo_payload(payload: dict[str, Any]) -> tuple[list[tupl
 
     total = int(payload.get("total") or len(places))
     return places, total
+
+
+def list_url_for_keyword(keyword: str, display: int) -> str:
+    encoded = quote(keyword)
+    if any(hint in keyword for hint in FOOD_KEYWORD_HINTS):
+        return RESTAURANT_LIST_URL.format(keyword=encoded, display=display)
+    return PLACE_LIST_URL.format(keyword=encoded, display=display)
 
 
 def merge_place_tuples(

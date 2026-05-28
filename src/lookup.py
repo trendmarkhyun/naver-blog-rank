@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from playwright.async_api import Browser, BrowserContext, Page, async_playwright
 
 from src.config_loader import Business
-from src.matcher import find_business_rank
+from src.matcher import SearchResultItem, find_business_rank
 from src.place_url import PlaceUrlError, parse_place_url
 from src.search import search_keyword_results
 from src.settings import load_settings
@@ -46,12 +46,59 @@ async def _create_browser_context(playwright) -> tuple[Browser, BrowserContext, 
     return browser, context, page
 
 
-def _place_name_from_results(results, rank: int | None) -> str | None:
-    if rank is None:
-        return None
+def _place_name_from_results(
+    results: list[SearchResultItem],
+    place_id: str,
+    rank: int | None,
+) -> str | None:
     for item in results:
-        if item.rank == rank:
+        if item.place_id == place_id:
             return item.name
+
+    if rank is not None:
+        for item in results:
+            if item.rank == rank:
+                return item.name
+
+    return None
+
+
+async def _fetch_place_name(page: Page, place_id: str) -> str | None:
+    urls = (
+        f"https://pcmap.place.naver.com/restaurant/{place_id}/home",
+        f"https://pcmap.place.naver.com/place/{place_id}/home",
+    )
+
+    for url in urls:
+        try:
+            await page.goto(url, wait_until="domcontentloaded", timeout=30000)
+            await page.wait_for_timeout(1000)
+            name = await page.evaluate(
+                """
+                (placeId) => {
+                  const heading = document.querySelector('h1');
+                  if (heading?.textContent?.trim()) {
+                    return heading.textContent.trim();
+                  }
+
+                  const state = window.__APOLLO_STATE__ || {};
+                  for (const key of Object.keys(state)) {
+                    const node = state[key];
+                    if (!node || typeof node !== 'object') continue;
+                    if (String(node.id) === String(placeId) && node.name) {
+                      return String(node.name);
+                    }
+                  }
+                  return null;
+                }
+                """,
+                place_id,
+            )
+            if isinstance(name, str) and name.strip():
+                return name.strip()
+        except Exception:
+            continue
+
     return None
 
 
@@ -101,11 +148,12 @@ async def lookup_rank(
             browser, _, page = await _create_browser_context(playwright)
             try:
                 results = await search_keyword_results(page, keyword, effective_max_rank)
+                match = find_business_rank(business, results)
+                place_name = _place_name_from_results(results, place_id, match.rank)
+                if not place_name:
+                    place_name = await _fetch_place_name(page, place_id)
             finally:
                 await browser.close()
-
-        match = find_business_rank(business, results)
-        place_name = _place_name_from_results(results, match.rank)
 
         return RankLookupResult(
             keyword=keyword,
@@ -151,7 +199,7 @@ async def refresh_watchlist(
                 for item in group_items:
                     business = Business(id=item.id, name=item.place_name, place_id=item.place_id)
                     match = find_business_rank(business, results)
-                    place_name = _place_name_from_results(results, match.rank) or item.place_name
+                    place_name = _place_name_from_results(results, item.place_id, match.rank) or item.place_name
                     apply_rank_refresh(
                         item,
                         rank=match.rank,

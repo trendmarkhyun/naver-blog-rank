@@ -9,7 +9,7 @@ from pathlib import Path
 from src.config_loader import ConfigError, load_config
 from src.config_loader import Business
 from src.matcher import SearchResultItem, find_business_rank
-from src.parser import parse_places_from_apollo_payload, to_search_results
+from src.parser import list_url_for_keyword, parse_places_from_apollo_payload, to_search_results
 from src.place_url import PlaceUrlError, parse_place_url
 from src.storage import Storage
 from src.team_config import load_team_watchlist, stable_item_id
@@ -67,6 +67,16 @@ class MatcherTests(unittest.TestCase):
         self.assertEqual(match.rank, 2)
         self.assertEqual(match.matched_by, "place_id")
 
+    def test_empty_name_does_not_match_first_result(self) -> None:
+        business = Business(id="x", name="", place_id="1934883905")
+        results = [
+            SearchResultItem(rank=1, place_id="1100344328", name="아낙네의밀가 공주본점"),
+            SearchResultItem(rank=2, place_id="31992305", name="피탕김탕"),
+        ]
+        match = find_business_rank(business, results)
+        self.assertFalse(match.found)
+        self.assertIsNone(match.rank)
+
 
 class ParserTests(unittest.TestCase):
     def test_parse_apollo_payload(self) -> None:
@@ -83,6 +93,15 @@ class ParserTests(unittest.TestCase):
         self.assertEqual(places[0][0], "2051450000")
         results = to_search_results(places)
         self.assertEqual(results[0].rank, 1)
+
+    def test_list_url_for_food_keyword(self) -> None:
+        url = list_url_for_keyword("공주시 맛집", 50)
+        self.assertIn("/restaurant/list", url)
+        self.assertIn("display=50", url)
+
+    def test_list_url_for_general_keyword(self) -> None:
+        url = list_url_for_keyword("강남 미용실", 30)
+        self.assertIn("/place/list", url)
 
 
 class PlaceUrlTests(unittest.TestCase):
