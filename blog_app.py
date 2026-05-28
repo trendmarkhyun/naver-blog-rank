@@ -58,6 +58,7 @@ EXPANDED_KEY = "expanded_blog_ids"
 MORE_POSTS_KEY = "blog_more_posts"
 
 INITIAL_VISIBLE_POSTS = 3
+POST_TABLE_COLS = [4, 27, 10, 14.75, 14.75, 14.75, 14.75]
 
 inject_base_css()
 inject_blog_ui_css()
@@ -248,12 +249,37 @@ def _apply_and_persist_ranks(
     reload_profiles(member_id)
 
 
+def render_post_table_header() -> None:
+    labels = [
+        "#",
+        "포스팅 제목",
+        "조회 / 댓글",
+        "키워드 1 / 순위",
+        "키워드 2 / 순위",
+        "키워드 3 / 순위",
+        "키워드 4 / 순위",
+    ]
+    cols = st.columns(POST_TABLE_COLS, gap="small")
+    for index, (col, label) in enumerate(zip(cols, labels)):
+        with col:
+            marker = " blog-tbl-head-marker" if index == 0 else ""
+            kw_head = " blog-tbl-kw-head" if index >= 3 else ""
+            st.markdown(
+                f'<div class="blog-tbl-head-cell{marker}{kw_head}">{label}</div>',
+                unsafe_allow_html=True,
+            )
+
+
 def render_post_row(
     profile: BlogProfile,
     post: BlogPost,
     row_index: int,
 ) -> None:
-    cols = st.columns([0.4, 2.7, 1.0, 1.47, 1.47, 1.47, 1.47])
+    cols = st.columns(
+        POST_TABLE_COLS,
+        vertical_alignment="center",
+        gap="small",
+    )
     with cols[0]:
         st.markdown(f'<div class="nc">{row_index}</div>', unsafe_allow_html=True)
     with cols[1]:
@@ -280,7 +306,6 @@ def render_post_row(
             if kw_key not in st.session_state:
                 st.session_state[kw_key] = keyword_value
 
-            st.markdown('<div class="blog-kw-input">', unsafe_allow_html=True)
             st.text_input(
                 "키워드",
                 key=kw_key,
@@ -289,7 +314,6 @@ def render_post_row(
                 on_change=_save_keyword_slot,
                 args=(kw_key, post.id, slot_index),
             )
-            st.markdown("</div>", unsafe_allow_html=True)
 
             current_text = st.session_state.get(kw_key, keyword_value)
             css = rank_badge_class(
@@ -302,7 +326,10 @@ def render_post_row(
                 kw.found if kw else False,
                 current_text,
             )
-            st.markdown(f'<div class="rb {css}">{label}</div>', unsafe_allow_html=True)
+            st.markdown(
+                f'<div class="blog-kw-badge"><div class="rb {css}">{label}</div></div>',
+                unsafe_allow_html=True,
+            )
 
 
 def _render_search_mode_radio(
@@ -371,13 +398,7 @@ def render_profile_detail(member: MemberSession, profile: BlogProfile, settings)
                 st.rerun()
     st.markdown("</div>", unsafe_allow_html=True)
 
-    st.markdown(
-        '<div class="blog-tbl-head">'
-        "<span>#</span><span>포스팅 제목</span><span>조회 / 댓글</span>"
-        "<span>키워드1</span><span>키워드2</span><span>키워드3</span><span>키워드4</span>"
-        "</div>",
-        unsafe_allow_html=True,
-    )
+    render_post_table_header()
 
     visible_count = len(profile.posts) if _is_more_posts_open(profile.id) else min(
         INITIAL_VISIBLE_POSTS, len(profile.posts)
