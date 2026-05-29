@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import asyncio
 import random
-import time
 from pathlib import Path
 import sys
 
@@ -49,7 +48,6 @@ from src.blog_ui_styles import (
     render_pills_html,
 )
 from src.playwright_bootstrap import ensure_playwright_browser
-from src.settings import load_settings
 from src.streamlit_guard import ensure_streamlit_keyboard_guard
 
 st.set_page_config(
@@ -65,6 +63,9 @@ MORE_POSTS_KEY = "blog_more_posts"
 
 INITIAL_VISIBLE_POSTS = 10
 POST_TABLE_COLS = [5, 38, 14.25, 14.25, 14.25, 14.25]
+PARALLEL_RANK_CONCURRENCY = 5
+PARALLEL_RANK_DELAY_MIN = 0.3
+PARALLEL_RANK_DELAY_MAX = 0.8
 
 inject_base_css()
 inject_blog_ui_css()
@@ -228,6 +229,60 @@ def run_refresh_profile(profile: BlogProfile, global_mode: str, max_rank: int):
     )
 
 
+async def _run_all_groups_async(
+    groups: list[tuple[tuple[str, str], list[KeywordRankTarget]]],
+    *,
+    max_rank: int,
+    progress,
+) -> dict:
+    total = len(groups)
+    completed = 0
+    all_results: dict = {}
+    semaphore = asyncio.Semaphore(PARALLEL_RANK_CONCURRENCY)
+
+    def progress_callback(keyword: str, mode: str) -> None:
+        nonlocal completed
+        completed += 1
+        mode_label = "통합검색" if mode == SEARCH_MODE_UNIFIED else "블로그탭"
+        progress.progress(
+            completed / total,
+            text=f"키워드 처리 중 ({completed}/{total}): {keyword} · {mode_label}",
+        )
+
+    async def run_one(
+        keyword: str,
+        mode: str,
+        group_targets: list[KeywordRankTarget],
+    ) -> dict:
+        async with semaphore:
+            try:
+                result = await refresh_single_keyword_group(
+                    keyword,
+                    mode,
+                    group_targets,
+                    max_rank=max_rank,
+                )
+            except Exception:
+                result = {}
+            await asyncio.sleep(
+                random.uniform(PARALLEL_RANK_DELAY_MIN, PARALLEL_RANK_DELAY_MAX)
+            )
+            progress_callback(keyword, mode)
+            return result
+
+    tasks = [
+        run_one(keyword, mode, group_targets)
+        for (keyword, mode), group_targets in groups
+    ]
+    results_list = await asyncio.gather(*tasks, return_exceptions=True)
+
+    for item in results_list:
+        if isinstance(item, dict):
+            all_results.update(item)
+
+    return all_results
+
+
 def run_refresh_all_with_progress(
     member_id: str,
     profiles: list[BlogProfile],
@@ -247,25 +302,10 @@ def run_refresh_all_with_progress(
     if not groups:
         return {}
 
-    settings = load_settings()
-    all_results: dict = {}
     progress = st.progress(0.0, text="순위 체크 준비 중...")
-
-    for index, ((keyword, mode), group_targets) in enumerate(groups):
-        mode_label = "통합검색" if mode == SEARCH_MODE_UNIFIED else "블로그탭"
-        progress.progress(
-            index / len(groups),
-            text=f"키워드 처리 중 ({index + 1}/{len(groups)}): {keyword} · {mode_label}",
-        )
-        partial = asyncio.run(
-            refresh_single_keyword_group(
-                keyword, mode, group_targets, max_rank=max_rank
-            )
-        )
-        all_results.update(partial)
-        if index < len(groups) - 1:
-            time.sleep(random.uniform(settings.delay_min, settings.delay_max))
-
+    all_results = asyncio.run(
+        _run_all_groups_async(groups, max_rank=max_rank, progress=progress)
+    )
     progress.progress(1.0, text=f"완료 — {len(groups)}개 키워드 처리")
     return all_results
 
