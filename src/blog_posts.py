@@ -116,10 +116,13 @@ def is_generic_title(title: str) -> bool:
 
 
 def posts_need_refresh(posts) -> bool:
-    """DB에 잘못 수집된 제목(동영상...)이 있으면 재수집."""
+    """DB에 잘못 수집된 제목·날짜가 있으면 재수집."""
     if not posts:
         return True
-    return any(is_generic_title(getattr(post, "title", "")) for post in posts)
+    if any(is_generic_title(getattr(post, "title", "")) for post in posts):
+        return True
+    dated = sum(1 for post in posts if (getattr(post, "published_at", None) or "").strip())
+    return dated < max(1, len(posts) // 2)
 
 
 def parse_post_list_response(raw: str) -> list[dict]:

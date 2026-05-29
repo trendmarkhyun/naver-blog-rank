@@ -19,6 +19,7 @@ from src.app_common import inject_base_css, render_brand_header, require_member
 from src.auth import MemberSession
 from src.blog_export import default_export_filename, export_blogs_to_xlsx
 from src.blog_lookup import (
+    KeywordRankTarget,
     apply_rank_results_to_keywords,
     collect_keyword_targets,
     group_keyword_targets,
@@ -125,10 +126,57 @@ def reload_profiles(member_id: str) -> list[BlogProfile]:
     return profiles
 
 
-def _save_keyword_slot(state_key: str, post_id: str, slot: int) -> None:
-    """on_change: 해당 슬롯만 DB upsert (전체 리렌더 없음)."""
-    value = st.session_state.get(state_key, "")
-    _store().upsert_keyword(post_id, slot, value)
+def _save_keyword_slot(
+    state_key: str,
+    post_id: str,
+    slot: int,
+    profile_id: str,
+    member_id: str,
+) -> None:
+    """on_change: 키워드 저장 후 해당 슬롯 순위 즉시 조회."""
+    value = str(st.session_state.get(state_key, "")).strip()
+    store = _store()
+    kw = store.upsert_keyword(post_id, slot, value)
+    if not value or not kw.id:
+        return
+
+    profile = store.load_profile_with_posts(member_id, profile_id)
+    if profile is None:
+        return
+    post = next((item for item in profile.posts if item.id == post_id), None)
+    if post is None:
+        return
+
+    settings = store.get_member_settings(member_id)
+    mode = effective_search_mode(profile, settings.blog_search_mode)
+    target = KeywordRankTarget(
+        keyword_id=kw.id,
+        keyword=value,
+        post_url=post.post_url,
+        post_id=post.post_id,
+        search_mode=mode,
+    )
+
+    try:
+        ensure_playwright_browser()
+        results = asyncio.run(
+            refresh_single_keyword_group(
+                value,
+                mode,
+                [target],
+                max_rank=settings.blog_max_rank,
+            )
+        )
+        result = results.get(kw.id)
+        if result is not None:
+            store.apply_keyword_rank(
+                kw.id,
+                rank=result.rank,
+                found=result.found,
+                updated_at=result.collected_at,
+            )
+    except Exception:
+        return
 
 
 def _flush_profile_keywords(profile: BlogProfile) -> None:
@@ -326,6 +374,7 @@ def render_post_table_header() -> None:
 
 
 def render_post_row(
+    member: MemberSession,
     profile: BlogProfile,
     post: BlogPost,
     row_index: int,
@@ -340,7 +389,7 @@ def render_post_row(
     with cols[1]:
         st.markdown(
             f'<div class="ptitle">{post.title}</div>'
-            f'<div class="pdate">{post.published_at or ""}</div>',
+            f'<div class="pdate">{(post.published_at or "").strip() or "-"}</div>',
             unsafe_allow_html=True,
         )
 
@@ -359,7 +408,7 @@ def render_post_row(
                 placeholder="입력",
                 label_visibility="collapsed",
                 on_change=_save_keyword_slot,
-                args=(kw_key, post.id, slot_index),
+                args=(kw_key, post.id, slot_index, profile.id, member.id),
             )
 
             current_text = st.session_state.get(kw_key, keyword_value)
@@ -478,7 +527,7 @@ def render_profile_detail(member: MemberSession, profile: BlogProfile, settings)
 
         visible_count = _visible_post_count(profile.id, profile.posts)
         for index, post in enumerate(profile.posts[:visible_count], start=1):
-            render_post_row(profile, post, index)
+            render_post_row(member, profile, post, index)
 
         remaining = _capped_post_count(profile.posts) - INITIAL_VISIBLE_POSTS
         if remaining > 0:

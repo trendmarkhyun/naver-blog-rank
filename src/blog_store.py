@@ -279,6 +279,34 @@ class BlogStore:
         inserted = self.client.table("blog_post_keywords").insert(payload).execute()
         return _row_to_keyword((inserted.data or [{}])[0])
 
+    def get_post(self, post_id: str) -> BlogPost | None:
+        response = (
+            self.client.table("blog_posts")
+            .select("*")
+            .eq("id", post_id)
+            .limit(1)
+            .execute()
+        )
+        rows = response.data or []
+        if not rows:
+            return None
+        post = _row_to_post(rows[0])
+        keywords_resp = (
+            self.client.table("blog_post_keywords")
+            .select("*")
+            .eq("blog_post_id", post_id)
+            .execute()
+        )
+        slots = {int(row["slot"]): _row_to_keyword(row) for row in (keywords_resp.data or [])}
+        post.keywords = [
+            slots.get(
+                slot,
+                BlogKeyword(id="", blog_post_id=post_id, slot=slot),
+            )
+            for slot in range(1, MAX_KEYWORDS + 1)
+        ]
+        return post
+
     def apply_keyword_rank(
         self,
         keyword_id: str,

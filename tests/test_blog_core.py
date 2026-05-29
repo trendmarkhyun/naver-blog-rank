@@ -162,7 +162,19 @@ class BlogModelTests(unittest.TestCase):
             title = "동영상..."
 
         self.assertTrue(posts_need_refresh([_Post()]))
-        self.assertFalse(posts_need_refresh([type("P", (), {"title": "실제 제목"})()]))
+        self.assertFalse(
+            posts_need_refresh(
+                [type("P", (), {"title": "실제 제목", "published_at": "2026. 5. 1."})()]
+            )
+        )
+        self.assertTrue(
+            posts_need_refresh(
+                [
+                    type("P", (), {"title": "실제", "published_at": ""})(),
+                    type("P", (), {"title": "실제2", "published_at": ""})(),
+                ]
+            )
+        )
 
 
 class BlogDateTests(unittest.TestCase):
@@ -198,24 +210,38 @@ class BlogDateTests(unittest.TestCase):
         self.assertEqual([post.published_at for post in ordered], ["9시간 전", "2026. 5. 27.", "2026. 5. 8."])
 
 
-class BlogSearchFilterTests(unittest.TestCase):
-    def test_ad_filter_ignores_loading_substrings(self) -> None:
-        from src.blog_search import BlogSearchResultItem, _is_ad_item
-
-        item = BlogSearchResultItem(
-            rank=1,
-            url="https://blog.naver.com/example/1234567890",
-            title="엘지 알뜰폰 로밍",
-            blog_id="example",
-            post_id="1234567890",
-            is_ad=False,
+class BlogSearchMetaAreaTests(unittest.TestCase):
+    def test_classify_meta_area(self) -> None:
+        from src.blog_search import (
+            AREA_TYPE_AD,
+            AREA_TYPE_POPULAR,
+            AREA_TYPE_SMARTBLOCK,
+            AREA_TYPE_WEBSITE,
+            classify_meta_area,
         )
-        self.assertFalse(_is_ad_item(item))
+
+        self.assertEqual(classify_meta_area("ugB_adR"), AREA_TYPE_AD)
+        self.assertEqual(classify_meta_area("ugB_ipR"), AREA_TYPE_AD)
+        self.assertEqual(classify_meta_area("ugB_bsR"), AREA_TYPE_POPULAR)
+        self.assertEqual(classify_meta_area("ugB_qpR"), AREA_TYPE_POPULAR)
+        self.assertEqual(classify_meta_area("ugB_b3R"), AREA_TYPE_SMARTBLOCK)
+        self.assertEqual(classify_meta_area("rrB_hdR"), AREA_TYPE_WEBSITE)
+        self.assertEqual(classify_meta_area("web_gen"), AREA_TYPE_WEBSITE)
+
+    def test_normalize_blog_post_url(self) -> None:
+        from src.blog_search import normalize_blog_post_url
+
+        self.assertEqual(
+            normalize_blog_post_url("https://blog.naver.com/foo/1234567890"),
+            "https://blog.naver.com/foo/1234567890",
+        )
+        self.assertIsNone(normalize_blog_post_url("https://blog.naver.com/foo"))
+        self.assertIsNone(normalize_blog_post_url("https://example.com/foo/1"))
 
 
 class BlogSearchMatchTests(unittest.TestCase):
     def test_find_post_rank(self) -> None:
-        from src.blog_search import BlogSearchResultItem, find_post_rank
+        from src.blog_search import BlogSearchResultItem, find_post_rank, find_post_rank_with_url
 
         results = [
             BlogSearchResultItem(
@@ -236,6 +262,52 @@ class BlogSearchMatchTests(unittest.TestCase):
         rank, found = find_post_rank("https://blog.naver.com/b/222", results, max_rank=50)
         self.assertTrue(found)
         self.assertEqual(rank, 2)
+
+        rank2, url = find_post_rank_with_url("https://blog.naver.com/b/222", results, max_rank=50)
+        self.assertEqual(rank2, 2)
+        self.assertEqual(url, "https://blog.naver.com/b/222")
+
+        rank3, url3 = find_post_rank_with_url("https://blog.naver.com/z/999", results, max_rank=50)
+        self.assertIsNone(rank3)
+        self.assertIsNone(url3)
+
+    def test_rows_to_results_preserves_rank_semantics(self) -> None:
+        from src.blog_search import AREA_TYPE_POPULAR, AREA_TYPE_SMARTBLOCK, AREA_TYPE_WEBSITE, _rows_to_results
+
+        raw_rows = [
+            {
+                "url": "https://blog.naver.com/a/1",
+                "title": "popular 1",
+                "rank": 1,
+                "areaType": AREA_TYPE_POPULAR,
+                "metaArea": "ugB_bsR",
+            },
+            {
+                "url": "https://blog.naver.com/a/2",
+                "title": "popular 2",
+                "rank": 2,
+                "areaType": AREA_TYPE_POPULAR,
+                "metaArea": "ugB_bsR",
+            },
+            {
+                "url": "https://blog.naver.com/b/1",
+                "title": "smart block 1",
+                "rank": 1,
+                "areaType": AREA_TYPE_SMARTBLOCK,
+                "metaArea": "ugB_b1R",
+            },
+            {
+                "url": "https://blog.naver.com/c/1",
+                "title": "website 3",
+                "rank": 3,
+                "areaType": AREA_TYPE_WEBSITE,
+                "metaArea": "urB_coR",
+            },
+        ]
+        results = _rows_to_results(raw_rows, max_rank=50)
+        self.assertEqual([item.rank for item in results], [1, 2, 1, 3])
+        self.assertEqual(results[2].area_type, AREA_TYPE_SMARTBLOCK)
+        self.assertEqual(results[3].area_type, AREA_TYPE_WEBSITE)
 
 
 if __name__ == "__main__":
